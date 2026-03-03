@@ -1,0 +1,11 @@
+services:
+  warpgate:
+    image: ghcr.io/warp-tech/warpgate
+    network_mode: host
+    ports:
+      - 2222:2222
+      - 8888:8888
+    volumes:
+      - ./data/warpgate:/data
+    stdin_open: true
+    tty: true

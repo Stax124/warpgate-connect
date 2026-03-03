@@ -1,0 +1,29 @@
+[package]
+name = "warpgate-connect"
+version = "0.1.0"
+description = "An example generated using the event-driven-async template"
+authors = ["Stax124 <novaktomas124@proton.me>"]
+license = "MIT"
+edition = "2024"
+
+[dependencies]
+crossterm = { version = "0.28.1", features = ["event-stream"] }
+futures = "0.3.31"
+ratatui = "0.30.0"
+tokio = { version = "1.40.0", features = ["full"] }
+color-eyre = "0.6.3"
+reqwest = { version = "0.13.2", features = ["json"] }
+serde = { version = "1.0.228", features = ["derive"] }
+ratatui-textarea = "0.8.0"
+config = { version = "0.15.19", features = ["toml"], default-features = false }
+directories = "6.0.0"
+toml = "1.0.3"
+regex-lite = "0.1.9"
+strum = { version = "0.28.0", features = ["derive"] }
+
+# Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
+strip = true
