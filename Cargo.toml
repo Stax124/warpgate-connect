@@ -20,6 +20,8 @@ directories = "6.0.0"
 toml = "1.0.3"
 regex-lite = "0.1.9"
 strum = { version = "0.28.0", features = ["derive"] }
+self_update = "0.42.0"
+clap = { version = "4.5.60", features = ["derive"] }
 
 # Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
 [profile.release]

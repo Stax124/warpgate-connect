@@ -11,10 +11,13 @@ mod ui;
 mod utils;
 mod warpgate;
 
-#[tokio::main]
-async fn main() -> color_eyre::Result<()> {
-    color_eyre::install()?;
+#[derive(Debug, clap::Parser)]
+struct Args {
+    #[arg(long, help = "Whether to try updating before running")]
+    skip_update: bool,
+}
 
+async fn async_main() -> color_eyre::Result<()> {
     let config = config::AppConfig::load()?;
     let config_for_execute = config.clone();
 
@@ -65,4 +68,53 @@ async fn main() -> color_eyre::Result<()> {
     }
 
     result
+}
+
+fn run_tokio_main() -> color_eyre::Result<()> {
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async { async_main().await })?;
+
+    Ok(())
+}
+
+fn main() -> color_eyre::Result<()> {
+    // let args = Args::parse();
+
+    color_eyre::install()?;
+
+    // if !args.skip_update {
+    //     let res = self_update::backends::github::Update::configure()
+    //         .repo_owner("stax124")
+    //         .repo_name("warpgate-connect")
+    //         .bin_name("warpgate-connect")
+    //         .show_download_progress(false)
+    //         .current_version(env!("CARGO_PKG_VERSION"))
+    //         .no_confirm(true)
+    //         .show_output(false)
+    //         .build()
+    //         .unwrap()
+    //         .update();
+
+    //     match res {
+    //         Ok(res) => {
+    //             if res.updated() {
+    //                 println!(
+    //                     "Updated to version {}. Please restart the application.",
+    //                     res.version()
+    //                 );
+    //                 return Ok(());
+    //             } else {
+    //                 println!("Already up to date.");
+    //             }
+    //         }
+    //         Err(e) => {
+    //             println!("Failed to check for updates: {}", e);
+    //         }
+    //     }
+    // }
+
+    run_tokio_main()
 }
