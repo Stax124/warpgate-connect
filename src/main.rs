@@ -1,3 +1,4 @@
+use clap::Parser;
 use tokio::process;
 
 use crate::{app::App, utils::get_domain_from_warpgate_url};
@@ -13,7 +14,10 @@ mod warpgate;
 
 #[derive(Debug, clap::Parser)]
 struct Args {
-    #[arg(long, help = "Whether to try updating before running")]
+    #[arg(
+        long,
+        help = "Skip the update check and proceed directly to the application."
+    )]
     skip_update: bool,
 }
 
@@ -81,40 +85,46 @@ fn run_tokio_main() -> color_eyre::Result<()> {
 }
 
 fn main() -> color_eyre::Result<()> {
-    // let args = Args::parse();
+    let args = Args::parse();
 
+    let _ = dotenvy::dotenv();
     color_eyre::install()?;
 
-    // if !args.skip_update {
-    //     let res = self_update::backends::github::Update::configure()
-    //         .repo_owner("stax124")
-    //         .repo_name("warpgate-connect")
-    //         .bin_name("warpgate-connect")
-    //         .show_download_progress(false)
-    //         .current_version(env!("CARGO_PKG_VERSION"))
-    //         .no_confirm(true)
-    //         .show_output(false)
-    //         .build()
-    //         .unwrap()
-    //         .update();
+    if !args.skip_update {
+        let mut updater = self_update::backends::github::Update::configure();
+        updater
+            .repo_owner("stax124")
+            .repo_name("warpgate-connect")
+            .bin_name("warpgate-connect")
+            .show_download_progress(true)
+            .current_version(env!("CARGO_PKG_VERSION"))
+            .no_confirm(true)
+            .show_output(true);
 
-    //     match res {
-    //         Ok(res) => {
-    //             if res.updated() {
-    //                 println!(
-    //                     "Updated to version {}. Please restart the application.",
-    //                     res.version()
-    //                 );
-    //                 return Ok(());
-    //             } else {
-    //                 println!("Already up to date.");
-    //             }
-    //         }
-    //         Err(e) => {
-    //             println!("Failed to check for updates: {}", e);
-    //         }
-    //     }
-    // }
+        let auth_token = std::env::var("GITHUB_AUTH_TOKEN");
+        if let Ok(ref token) = auth_token {
+            updater.auth_token(token);
+        }
+
+        let res = updater.build().unwrap().update();
+
+        match res {
+            Ok(res) => {
+                if res.updated() {
+                    println!(
+                        "Updated to version {}. Please restart the application.",
+                        res.version()
+                    );
+                    return Ok(());
+                } else {
+                    println!("Already up to date.");
+                }
+            }
+            Err(e) => {
+                println!("Failed to check for updates: {}", e);
+            }
+        }
+    }
 
     run_tokio_main()
 }
