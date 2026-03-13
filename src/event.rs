@@ -49,6 +49,12 @@ pub enum AppEvent {
     RefreshTargets,
     /// Recalculate the filtered targets (e.g. after a fetch completes).
     RecalculateTargets,
+    /// Check for application updates in the background.
+    CheckForUpdate,
+    /// An update is available with the given version string.
+    UpdateAvailable(String),
+    /// The user wants to trigger the update process.
+    TriggerUpdate,
 }
 
 /// Terminal event handler.

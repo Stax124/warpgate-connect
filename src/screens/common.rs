@@ -35,7 +35,16 @@ pub fn draw_status_bar(app: &App, area: Rect, buf: &mut Buffer, is_loading: &boo
     .bold()
     .render(left_area, buf);
 
-    Paragraph::new("[R]efresh | [N]ext page | [Q]uit")
+    let update_text = {
+        let update_available = app.data.update_available.lock().unwrap();
+        if let Some(ref version) = *update_available {
+            format!(" | [U]pdate v{}", version)
+        } else {
+            String::new()
+        }
+    };
+
+    Paragraph::new(format!("[R]efresh | [N]ext page | [Q]uit{}", update_text))
         .alignment(Alignment::Right)
         .fg(Color::Cyan)
         .bold()

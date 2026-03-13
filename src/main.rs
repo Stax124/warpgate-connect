@@ -21,7 +21,7 @@ struct Args {
     skip_update: bool,
 }
 
-async fn async_main() -> color_eyre::Result<()> {
+async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
     let config = config::AppConfig::load()?;
     let config_for_execute = config.clone();
 
@@ -29,8 +29,49 @@ async fn async_main() -> color_eyre::Result<()> {
     let data_for_execute = data.clone();
 
     let terminal = ratatui::init();
-    let result = App::new(data, config).run(terminal).await;
+    let result = App::new(data, config, skip_update).run(terminal).await;
     ratatui::restore();
+
+    // Handle update if the user triggered it
+    if *data_for_execute.trigger_update.lock().unwrap() {
+        println!("Starting update...");
+
+        tokio::task::spawn_blocking(move || {
+            let mut updater = self_update::backends::github::Update::configure();
+            updater
+                .repo_owner("stax124")
+                .repo_name("warpgate-connect")
+                .bin_name("warpgate-connect")
+                .show_download_progress(true)
+                .current_version(env!("CARGO_PKG_VERSION"))
+                .no_confirm(true)
+                .show_output(true);
+
+            let auth_token = std::env::var("GITHUB_AUTH_TOKEN");
+            if let Ok(ref token) = auth_token {
+                updater.auth_token(token);
+            }
+
+            match updater.build().unwrap().update() {
+                Ok(status) => {
+                    if status.updated() {
+                        println!(
+                            "Updated to version {}. Please restart the application.",
+                            status.version()
+                        );
+                    } else {
+                        println!("Already up to date.");
+                    }
+                }
+                Err(e) => {
+                    println!("Update failed: {}", e);
+                }
+            }
+        })
+        .await?;
+
+        return result;
+    }
 
     let selected_target = data_for_execute.selected_target.lock().unwrap();
 
@@ -74,12 +115,12 @@ async fn async_main() -> color_eyre::Result<()> {
     result
 }
 
-fn run_tokio_main() -> color_eyre::Result<()> {
+fn run_tokio_main(skip_update: bool) -> color_eyre::Result<()> {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(async { async_main().await })?;
+        .block_on(async { async_main(skip_update).await })?;
 
     Ok(())
 }
@@ -90,41 +131,5 @@ fn main() -> color_eyre::Result<()> {
     let _ = dotenvy::dotenv();
     color_eyre::install()?;
 
-    if !args.skip_update {
-        let mut updater = self_update::backends::github::Update::configure();
-        updater
-            .repo_owner("stax124")
-            .repo_name("warpgate-connect")
-            .bin_name("warpgate-connect")
-            .show_download_progress(true)
-            .current_version(env!("CARGO_PKG_VERSION"))
-            .no_confirm(true)
-            .show_output(true);
-
-        let auth_token = std::env::var("GITHUB_AUTH_TOKEN");
-        if let Ok(ref token) = auth_token {
-            updater.auth_token(token);
-        }
-
-        let res = updater.build().unwrap().update();
-
-        match res {
-            Ok(res) => {
-                if res.updated() {
-                    println!(
-                        "Updated to version {}. Please restart the application.",
-                        res.version()
-                    );
-                    return Ok(());
-                } else {
-                    println!("Already up to date.");
-                }
-            }
-            Err(e) => {
-                println!("Failed to check for updates: {}", e);
-            }
-        }
-    }
-
-    run_tokio_main()
+    run_tokio_main(args.skip_update)
 }

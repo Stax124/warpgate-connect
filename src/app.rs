@@ -131,11 +131,17 @@ pub struct App<'a> {
     pub warpgate_selected_input: WarpgateSettingsScreenInput,
     /// Filtered targets based on the search query and group filter.
     pub filtered_targets: Vec<WarpgateTarget>,
+    /// Whether to skip the update check on startup.
+    pub skip_update: bool,
 }
 
 impl<'a> App<'a> {
     /// Constructs a new instance of [`App`].
-    pub fn new(data: crate::app_data::Data, config: Arc<Mutex<crate::config::AppConfig>>) -> Self {
+    pub fn new(
+        data: crate::app_data::Data,
+        config: Arc<Mutex<crate::config::AppConfig>>,
+        skip_update: bool,
+    ) -> Self {
         let warpgate_url = {
             let cfg = config.lock().unwrap();
             cfg.warpgate_api_url.clone().unwrap_or_default()
@@ -183,6 +189,7 @@ impl<'a> App<'a> {
             ),
             warpgate_selected_input: WarpgateSettingsScreenInput::URL,
             filtered_targets: Vec::new(),
+            skip_update,
         }
     }
 
@@ -194,6 +201,11 @@ impl<'a> App<'a> {
         // Trigger initial fetch if we're on the main screen (config is valid)
         if self.screen == AppScreen::Main {
             self.events.send(AppEvent::RefreshTargets);
+        }
+
+        // Check for updates in the background
+        if !self.skip_update {
+            self.events.send(AppEvent::CheckForUpdate);
         }
 
         while self.running {
@@ -244,6 +256,48 @@ impl<'a> App<'a> {
                     AppEvent::RecalculateTargets => {
                         self.recalculate_filtered_targets();
                     }
+                    AppEvent::CheckForUpdate => {
+                        let sender = self.events.sender.clone();
+
+                        tokio::task::spawn_blocking(move || {
+                            let mut updater_base =
+                                self_update::backends::github::Update::configure();
+
+                            updater_base
+                                .repo_owner("stax124")
+                                .repo_name("warpgate-connect")
+                                .bin_name("warpgate-connect")
+                                .current_version(env!("CARGO_PKG_VERSION"));
+
+                            if let Ok(token) = std::env::var("GITHUB_AUTH_TOKEN") {
+                                updater_base.auth_token(token.as_str());
+                            }
+
+                            let updater = updater_base.build();
+                            if let Ok(updater) = updater {
+                                if let Ok(release) = updater.get_latest_release() {
+                                    let current = env!("CARGO_PKG_VERSION");
+                                    if self_update::version::bump_is_greater(
+                                        current,
+                                        &release.version,
+                                    )
+                                    .unwrap_or(false)
+                                    {
+                                        let _ = sender.send(Event::App(AppEvent::UpdateAvailable(
+                                            release.version,
+                                        )));
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    AppEvent::UpdateAvailable(version) => {
+                        *self.data.update_available.lock().unwrap() = Some(version);
+                    }
+                    AppEvent::TriggerUpdate => {
+                        *self.data.trigger_update.lock().unwrap() = true;
+                        self.quit();
+                    }
                 },
             }
         }
@@ -258,6 +312,11 @@ impl<'a> App<'a> {
             }
             KeyCode::Char('Q') => self.events.send(AppEvent::Quit),
             KeyCode::Char('R') => self.events.send(AppEvent::RefreshTargets),
+            KeyCode::Char('U') => {
+                if self.data.update_available.lock().unwrap().is_some() {
+                    self.events.send(AppEvent::TriggerUpdate);
+                }
+            }
             KeyCode::Char('N') => {
                 // Swap between screens
                 self.screen = match self.screen {
