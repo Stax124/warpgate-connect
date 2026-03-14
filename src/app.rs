@@ -22,7 +22,7 @@ pub enum AppScreen {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter)]
 pub enum WarpgateSettingsScreenInput {
-    URL,
+    Url,
     Token,
     Username,
     Port,
@@ -67,9 +67,7 @@ impl<'a> AppInputs<'a> {
                 text_area
             },
             warpgate_url_input: {
-                let mut text_area = TextArea::new(vec![
-                    warpgate_url.to_string(), // Pre-fill with the current URL from config
-                ]);
+                let mut text_area = TextArea::new(vec![warpgate_url.to_string()]);
                 text_area.set_block(get_textarea_block(" Warpgate URL "));
                 text_area.set_placeholder_text("Warpgate URL...");
                 text_area.set_cursor_line_style(Style::default().add_modifier(Modifier::BOLD));
@@ -77,9 +75,7 @@ impl<'a> AppInputs<'a> {
                 text_area
             },
             warpgate_token_input: {
-                let mut text_area = TextArea::new(vec![
-                    warpgate_token.to_string(), // Pre-fill with the current token from config
-                ]);
+                let mut text_area = TextArea::new(vec![warpgate_token.to_string()]);
                 text_area.set_block(get_textarea_block(" Warpgate Token "));
                 text_area.set_placeholder_text("Warpgate Token...");
                 text_area.set_cursor_line_style(Style::default().add_modifier(Modifier::BOLD));
@@ -87,18 +83,14 @@ impl<'a> AppInputs<'a> {
                 text_area
             },
             warpgate_username_input: {
-                let mut text_area = TextArea::new(vec![
-                    warpgate_username.to_string(), // Pre-fill with the current username from config
-                ]);
+                let mut text_area = TextArea::new(vec![warpgate_username.to_string()]);
                 text_area.set_block(get_textarea_block(" Warpgate Username "));
                 text_area.set_placeholder_text("Warpgate Username...");
                 text_area.set_cursor_line_style(Style::default().add_modifier(Modifier::BOLD));
                 text_area
             },
             warpgate_port_input: {
-                let mut text_area = TextArea::new(vec![
-                    warpgate_port.to_string(), // Pre-fill with the current port from config
-                ]);
+                let mut text_area = TextArea::new(vec![warpgate_port.to_string()]);
                 text_area.set_block(get_textarea_block(" Warpgate Port "));
                 text_area.set_placeholder_text("2222");
                 text_area.set_cursor_line_style(Style::default().add_modifier(Modifier::BOLD));
@@ -108,30 +100,18 @@ impl<'a> AppInputs<'a> {
     }
 }
 
-/// Application.
 #[derive(Debug)]
 pub struct App<'a> {
-    /// Is the application running?
     pub running: bool,
-    /// Current screen of the application.
     pub screen: AppScreen,
-    /// State of the table widget.
     pub table_state: TableState,
-    /// Event handler.
     pub events: EventHandler,
-    /// List of warpgate targets that the client can connect to.
     pub data: crate::app_data::Data,
-    /// Configuration for the application.
     pub config: Arc<Mutex<crate::config::AppConfig>>,
-    /// Group filter for the warpgate targets.
     pub group_filter: Option<WarpgateTargetGroup>,
-    /// Inputs
     pub ui_inputs: AppInputs<'a>,
-    /// Currently selected input in the Warpgate settings screen.
     pub warpgate_selected_input: WarpgateSettingsScreenInput,
-    /// Filtered targets based on the search query and group filter.
     pub filtered_targets: Vec<WarpgateTarget>,
-    /// Whether to skip the update check on startup.
     pub skip_update: bool,
 }
 
@@ -142,26 +122,16 @@ impl<'a> App<'a> {
         config: Arc<Mutex<crate::config::AppConfig>>,
         skip_update: bool,
     ) -> Self {
-        let warpgate_url = {
+        let (warpgate_url, warpgate_token, warpgate_username, warpgate_port) = {
             let cfg = config.lock().unwrap();
-            cfg.warpgate_api_url.clone().unwrap_or_default()
-        };
-
-        let warpgate_token = {
-            let cfg = config.lock().unwrap();
-            cfg.warpgate_token.clone().unwrap_or_default()
-        };
-
-        let warpgate_username = {
-            let cfg = config.lock().unwrap();
-            cfg.warpgate_username.clone().unwrap_or_default()
-        };
-
-        let warpgate_port = {
-            let cfg = config.lock().unwrap();
-            cfg.warpgate_port
-                .map(|p| p.to_string())
-                .unwrap_or_else(|| "2222".to_string())
+            (
+                cfg.warpgate_api_url.clone().unwrap_or_default(),
+                cfg.warpgate_token.clone().unwrap_or_default(),
+                cfg.warpgate_username.clone().unwrap_or_default(),
+                cfg.warpgate_port
+                    .map(|p| p.to_string())
+                    .unwrap_or_else(|| "2222".to_string()),
+            )
         };
 
         let screen = {
@@ -187,7 +157,7 @@ impl<'a> App<'a> {
                 warpgate_username.as_str(),
                 warpgate_port.as_str(),
             ),
-            warpgate_selected_input: WarpgateSettingsScreenInput::URL,
+            warpgate_selected_input: WarpgateSettingsScreenInput::Url,
             filtered_targets: Vec::new(),
             skip_update,
         }
@@ -274,19 +244,16 @@ impl<'a> App<'a> {
                             }
 
                             let updater = updater_base.build();
-                            if let Ok(updater) = updater {
-                                if let Ok(release) = updater.get_latest_release() {
-                                    let current = env!("CARGO_PKG_VERSION");
-                                    if self_update::version::bump_is_greater(
-                                        current,
-                                        &release.version,
-                                    )
+                            if let Ok(updater) = updater
+                                && let Ok(release) = updater.get_latest_release()
+                            {
+                                let current = env!("CARGO_PKG_VERSION");
+                                if self_update::version::bump_is_greater(current, &release.version)
                                     .unwrap_or(false)
-                                    {
-                                        let _ = sender.send(Event::App(AppEvent::UpdateAvailable(
-                                            release.version,
-                                        )));
-                                    }
+                                {
+                                    let _ = sender.send(Event::App(AppEvent::UpdateAvailable(
+                                        release.version,
+                                    )));
                                 }
                             }
                         });
@@ -335,7 +302,6 @@ impl<'a> App<'a> {
     pub fn handle_key_main(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
         match key_event.code {
             KeyCode::Char('G') => {
-                // If there is no group filter, set it to the first group if there exists one, otherwise rotate through the groups until end is reached and then set to None
                 let mut available_groups: Vec<WarpgateTargetGroup> = self
                     .data
                     .warpgate_targets
@@ -348,46 +314,20 @@ impl<'a> App<'a> {
                     .filter_map(|t| t.group.clone())
                     .collect();
 
-                // Deduplicate groups (needs to be sorted first for dedup to work correctly)
                 available_groups.sort_by(|a, b| a.name.cmp(&b.name));
                 available_groups.dedup();
 
-                // Check if we do have a filter already
-                if let Some(current_filter) = &self.group_filter {
-                    let current_index = available_groups
-                        .iter()
-                        .position(|group| group == current_filter);
-
-                    // Check if we can find the value inside the vector
-                    if let Some(current_index) = current_index {
-                        // Check if we will be in bounds for the next one
-                        if current_index + 1 < available_groups.len() {
-                            // Set it to the next available one
-                            self.group_filter = Some(available_groups[current_index + 1].clone())
-                        } else {
-                            // We are at the end of the array, reset the filter
-                            self.group_filter = None;
-                        }
-                    } else {
-                        // Check if we can set it to the first available group
-                        if !available_groups.is_empty() {
-                            // We can just set it to the first group
-                            self.group_filter = Some(available_groups[0].clone())
-                        } else {
-                            // There is no group that we can use, just reset the filter
-                            self.group_filter = None
-                        }
+                self.group_filter = match &self.group_filter {
+                    Some(current) => {
+                        let next_idx = available_groups
+                            .iter()
+                            .position(|g| g == current)
+                            .map(|idx| idx + 1)
+                            .unwrap_or(0);
+                        available_groups.get(next_idx).cloned()
                     }
-                } else {
-                    // We do not have any value set, try to set it
-                    if !available_groups.is_empty() {
-                        // We can just set it to the first group
-                        self.group_filter = Some(available_groups[0].clone())
-                    } else {
-                        // There is no group that we can use, just reset the filter
-                        self.group_filter = None
-                    }
-                }
+                    None => available_groups.first().cloned(),
+                };
 
                 self.recalculate_filtered_targets();
             }
@@ -402,19 +342,14 @@ impl<'a> App<'a> {
     }
 
     pub fn get_string_from_textarea(text_area: &TextArea) -> Option<String> {
-        text_area
-            .lines()
-            .first()
-            .cloned()
-            .map(|v| {
-                let trimmed = v.trim();
-                if trimmed.is_empty() {
-                    None
-                } else {
-                    Some(trimmed.to_string())
-                }
-            })
-            .flatten()
+        text_area.lines().first().cloned().and_then(|v| {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        })
     }
 
     pub fn handle_key_warpgate_settings(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
@@ -457,10 +392,10 @@ impl<'a> App<'a> {
 
     pub fn warpgate_select_next_input(&mut self) {
         self.warpgate_selected_input = match self.warpgate_selected_input {
-            WarpgateSettingsScreenInput::URL => WarpgateSettingsScreenInput::Username,
+            WarpgateSettingsScreenInput::Url => WarpgateSettingsScreenInput::Username,
             WarpgateSettingsScreenInput::Username => WarpgateSettingsScreenInput::Token,
             WarpgateSettingsScreenInput::Token => WarpgateSettingsScreenInput::Port,
-            WarpgateSettingsScreenInput::Port => WarpgateSettingsScreenInput::URL,
+            WarpgateSettingsScreenInput::Port => WarpgateSettingsScreenInput::Url,
         };
 
         self.warpgate_update_input_border();
@@ -468,10 +403,10 @@ impl<'a> App<'a> {
 
     pub fn warpgate_select_previous_input(&mut self) {
         self.warpgate_selected_input = match self.warpgate_selected_input {
-            WarpgateSettingsScreenInput::URL => WarpgateSettingsScreenInput::Port,
+            WarpgateSettingsScreenInput::Url => WarpgateSettingsScreenInput::Port,
             WarpgateSettingsScreenInput::Port => WarpgateSettingsScreenInput::Token,
             WarpgateSettingsScreenInput::Token => WarpgateSettingsScreenInput::Username,
-            WarpgateSettingsScreenInput::Username => WarpgateSettingsScreenInput::URL,
+            WarpgateSettingsScreenInput::Username => WarpgateSettingsScreenInput::Url,
         };
 
         self.warpgate_update_input_border();
@@ -482,7 +417,7 @@ impl<'a> App<'a> {
         input: &WarpgateSettingsScreenInput,
     ) -> &mut TextArea<'a> {
         match input {
-            WarpgateSettingsScreenInput::URL => &mut self.ui_inputs.warpgate_url_input,
+            WarpgateSettingsScreenInput::Url => &mut self.ui_inputs.warpgate_url_input,
             WarpgateSettingsScreenInput::Token => &mut self.ui_inputs.warpgate_token_input,
             WarpgateSettingsScreenInput::Username => &mut self.ui_inputs.warpgate_username_input,
             WarpgateSettingsScreenInput::Port => &mut self.ui_inputs.warpgate_port_input,
@@ -497,7 +432,7 @@ impl<'a> App<'a> {
 
             text_area.set_block(
                 get_textarea_block(match input {
-                    WarpgateSettingsScreenInput::URL => " Warpgate URL ",
+                    WarpgateSettingsScreenInput::Url => " Warpgate URL ",
                     WarpgateSettingsScreenInput::Token => " Warpgate Token ",
                     WarpgateSettingsScreenInput::Username => " Warpgate Username ",
                     WarpgateSettingsScreenInput::Port => " Warpgate Port ",
@@ -523,7 +458,7 @@ impl<'a> App<'a> {
         let target_input = match self.screen {
             AppScreen::Main => &mut self.ui_inputs.search_input,
             AppScreen::WarpgateSettings => match self.warpgate_selected_input {
-                WarpgateSettingsScreenInput::URL => &mut self.ui_inputs.warpgate_url_input,
+                WarpgateSettingsScreenInput::Url => &mut self.ui_inputs.warpgate_url_input,
                 WarpgateSettingsScreenInput::Token => &mut self.ui_inputs.warpgate_token_input,
                 WarpgateSettingsScreenInput::Username => {
                     &mut self.ui_inputs.warpgate_username_input
@@ -601,7 +536,7 @@ impl<'a> App<'a> {
                 if let Some(group_filter) = &self.group_filter {
                     t.group
                         .as_ref()
-                        .map_or(false, |g| g.name == group_filter.name)
+                        .is_some_and(|g| g.name == group_filter.name)
                 } else {
                     true
                 }

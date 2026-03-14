@@ -11,11 +11,13 @@ pub fn draw_status_bar(app: &App, area: Rect, buf: &mut Buffer, is_loading: &boo
     let [left_area, right_area] =
         Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).areas(area);
 
+    let targets_ok = app.data.warpgate_targets.lock().unwrap().is_ok();
+
     Paragraph::new(format!(
         "Status: {}",
         if *is_loading {
             "Loading targets..."
-        } else if app.data.warpgate_targets.lock().unwrap().is_ok() {
+        } else if targets_ok {
             "Ready"
         } else {
             "Error loading targets"
@@ -25,7 +27,7 @@ pub fn draw_status_bar(app: &App, area: Rect, buf: &mut Buffer, is_loading: &boo
     .fg(match *is_loading {
         true => Color::Yellow,
         false => {
-            if app.data.warpgate_targets.lock().unwrap().is_ok() {
+            if targets_ok {
                 Color::Green
             } else {
                 Color::Red

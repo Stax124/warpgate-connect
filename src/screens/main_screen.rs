@@ -66,10 +66,8 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
     let first_column_width = std::cmp::max(6, longest_group_name_length + 2) as u16;
 
     // Check if we have any target selected, if not, select the first one (if it exists)
-    if app.table_state.selected().is_none() {
-        if !rows.is_empty() {
-            app.table_state.select(Some(0));
-        }
+    if app.table_state.selected().is_none() && !rows.is_empty() {
+        app.table_state.select(Some(0));
     }
 
     let table = Table::new(
@@ -113,7 +111,7 @@ pub fn draw_search_bar_and_filters(app: &App, area: Rect, buf: &mut Buffer) {
         .block(filter_block)
         .alignment(Alignment::Right)
         .fg(get_color_from_group_color(
-            &app.group_filter.as_ref().map(|v| v.color.clone()).flatten(),
+            &app.group_filter.as_ref().and_then(|v| v.color.clone()),
         ))
         .add_modifier(Modifier::BOLD)
         .render(right_side, buf);

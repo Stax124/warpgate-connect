@@ -8,7 +8,7 @@ pub fn get_color_from_group_color(group_color: &Option<String>) -> Color {
         Some("Danger") => Color::Red,
         Some("Warning") => Color::Yellow,
         Some("Success") => Color::Green,
-        _ => Color::Gray, // Default color if no group color is specified
+        _ => Color::Gray,
     }
 }
 
@@ -18,18 +18,17 @@ pub fn try_set_first_index(app: &mut App, is_loading: &bool) {
 
     if *should_set_list_element_index_guard && !*is_loading {
         let warpgate_targets = app.data.warpgate_targets.lock().unwrap();
-        if let Ok(targets) = warpgate_targets.as_ref() {
-            if !targets.is_empty() {
-                app.table_state.select(Some(0));
-            }
+        if let Ok(targets) = warpgate_targets.as_ref()
+            && !targets.is_empty()
+        {
+            app.table_state.select(Some(0));
         }
         *should_set_list_element_index_guard = false;
     }
 }
 
 pub fn get_domain_from_warpgate_url(url: &str) -> Option<String> {
-    // A simple regex to extract the domain from the URL
-    let re = regex_lite::Regex::new(r"^https?://([^:/]+)").unwrap(); // TODO: might not be a correct regex, check
+    let re = regex_lite::Regex::new(r"^https?://([^:/]+)").unwrap();
     re.captures(url)
         .and_then(|caps| caps.get(1).map(|m| m.as_str().to_string()))
 }

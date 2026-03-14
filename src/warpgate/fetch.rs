@@ -12,10 +12,7 @@ use crate::app_data::Data;
 /// This sets `loading_targets` to `true` before fetching and `false` after,
 /// and writes the result (or error) into `data.warpgate_targets`.
 pub async fn fetch_warpgate_data(data: Data, config: Arc<Mutex<crate::config::AppConfig>>) {
-    // Closure to automatically drop the guard
-    {
-        *data.loading_targets.lock().unwrap() = true;
-    }
+    *data.loading_targets.lock().unwrap() = true;
 
     let warpgate_url = {
         let cfg = config.lock().unwrap();

@@ -48,10 +48,16 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
     ])
     .areas(area);
 
-    draw_warpgate_url_input_screen(app, url_area, buf);
-    draw_warpgate_token_input_screen(app, token_area, buf);
-    draw_warpgate_username_input_screen(app, username_area, buf);
-    draw_warpgate_port_input_screen(app, port_area, buf);
+    validate_url(&mut app.ui_inputs.warpgate_url_input);
+    app.ui_inputs.warpgate_url_input.render(url_area, buf);
+
+    validate_token(&mut app.ui_inputs.warpgate_token_input);
+    app.ui_inputs.warpgate_token_input.render(token_area, buf);
+
+    app.ui_inputs
+        .warpgate_username_input
+        .render(username_area, buf);
+    app.ui_inputs.warpgate_port_input.render(port_area, buf);
 
     Paragraph::new(Line::from(vec![
         Span::raw("Press "),
@@ -63,22 +69,4 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
     .render(fill_area, buf);
 
     draw_status_bar(app, status_bar_area, buf, &false);
-}
-
-pub fn draw_warpgate_url_input_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
-    validate_url(&mut app.ui_inputs.warpgate_url_input);
-    app.ui_inputs.warpgate_url_input.render(area, buf);
-}
-
-pub fn draw_warpgate_token_input_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
-    validate_token(&mut app.ui_inputs.warpgate_token_input);
-    app.ui_inputs.warpgate_token_input.render(area, buf);
-}
-
-pub fn draw_warpgate_username_input_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
-    app.ui_inputs.warpgate_username_input.render(area, buf);
-}
-
-pub fn draw_warpgate_port_input_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
-    app.ui_inputs.warpgate_port_input.render(area, buf);
 }

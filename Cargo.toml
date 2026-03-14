@@ -1,7 +1,7 @@
 [package]
 name = "warpgate-connect"
 version = "0.1.0"
-description = "An example generated using the event-driven-async template"
+description = "A TUI client for connecting to Warpgate SSH targets"
 authors = ["Stax124 <novaktomas124@proton.me>"]
 license = "MIT"
 edition = "2024"

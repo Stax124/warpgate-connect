@@ -73,11 +73,11 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
         return result;
     }
 
-    let selected_target = data_for_execute.selected_target.lock().unwrap();
+    let selected_target = data_for_execute.selected_target.lock().unwrap().clone();
 
-    match &*selected_target {
+    match selected_target {
         Some(target) => {
-            let config = config_for_execute.lock().unwrap();
+            let config = config_for_execute.lock().unwrap().clone();
             if !config.are_all_required_fields_set() {
                 println!(
                     "Cannot connect: Missing required configuration fields. Please check your settings."
