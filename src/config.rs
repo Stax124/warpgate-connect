@@ -33,7 +33,7 @@ impl AppConfig {
             .set_default::<&str, Option<String>>("warpgate_api_url", None)?
             .set_default::<&str, Option<String>>("warpgate_token", None)?
             .set_default::<&str, Option<String>>("warpgate_username", None)?
-            .set_default::<&str, Option<u16>>("warpgate_port", None)?
+            .set_default::<&str, Option<u16>>("warpgate_port", 2222.into())?
             .add_source(
                 File::from(Self::get_config_file_path())
                     .required(false)
