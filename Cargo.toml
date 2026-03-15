@@ -1,6 +1,6 @@
 [package]
 name = "warpgate-connect"
-version = "0.4.0"
+version = "0.5.0"
 description = "A TUI client for connecting to Warpgate SSH targets"
 authors = ["Stax124 <novaktomas124@proton.me>"]
 license = "MIT"
@@ -27,6 +27,8 @@ strum = { version = "0.27.2", features = ["derive"] }
 self_update = { version = "0.43.1", features = [
     "rustls",
     "reqwest",
+    "archive-tar",
+    "compression-flate2",
 ], default-features = false }
 clap = { version = "4.5.60", features = ["derive"] }
 dotenvy = "0.15.7"
