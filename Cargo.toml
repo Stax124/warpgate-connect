@@ -27,8 +27,6 @@ strum = { version = "0.27.2", features = ["derive"] }
 self_update = { version = "0.43.1", features = [
     "rustls",
     "reqwest",
-    "archive-tar",
-    "compression-flate2",
 ], default-features = false }
 clap = { version = "4.5.60", features = ["derive"] }
 dotenvy = "0.15.7"
