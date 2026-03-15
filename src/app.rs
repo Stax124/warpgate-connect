@@ -13,11 +13,13 @@ use ratatui::{
 };
 use ratatui_textarea::{Input, TextArea};
 use strum::{EnumIter, IntoEnumIterator};
+use tui_logger::TuiWidgetState;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum AppScreen {
     Main,
     WarpgateSettings,
+    Logs,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter)]
@@ -100,7 +102,6 @@ impl<'a> AppInputs<'a> {
     }
 }
 
-#[derive(Debug)]
 pub struct App<'a> {
     pub running: bool,
     pub screen: AppScreen,
@@ -113,6 +114,7 @@ pub struct App<'a> {
     pub warpgate_selected_input: WarpgateSettingsScreenInput,
     pub filtered_targets: Vec<WarpgateTarget>,
     pub skip_update: bool,
+    pub logger_state: TuiWidgetState,
 }
 
 impl<'a> App<'a> {
@@ -160,6 +162,7 @@ impl<'a> App<'a> {
             warpgate_selected_input: WarpgateSettingsScreenInput::Url,
             filtered_targets: Vec::new(),
             skip_update,
+            logger_state: TuiWidgetState::new(),
         }
     }
 
@@ -288,12 +291,14 @@ impl<'a> App<'a> {
                 // Swap between screens
                 self.screen = match self.screen {
                     AppScreen::Main => AppScreen::WarpgateSettings,
-                    AppScreen::WarpgateSettings => AppScreen::Main,
+                    AppScreen::WarpgateSettings => AppScreen::Logs,
+                    AppScreen::Logs => AppScreen::Main,
                 }
             }
             _ => match self.screen {
                 AppScreen::Main => self.handle_key_main(key_event)?,
                 AppScreen::WarpgateSettings => self.handle_key_warpgate_settings(key_event)?,
+                AppScreen::Logs => self.handle_key_logs(key_event)?,
             },
         }
         Ok(())
@@ -385,6 +390,14 @@ impl<'a> App<'a> {
         Ok(())
     }
 
+    pub fn handle_key_logs(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
+        match key_event.code {
+            // TODO: Hook the log screen key events
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
         self.running = false;
@@ -465,6 +478,7 @@ impl<'a> App<'a> {
                 }
                 WarpgateSettingsScreenInput::Port => &mut self.ui_inputs.warpgate_port_input,
             },
+            AppScreen::Logs => return,
         };
 
         match key_event.code {

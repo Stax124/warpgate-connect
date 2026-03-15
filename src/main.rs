@@ -1,5 +1,7 @@
 use clap::Parser;
 use tokio::process;
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use tui_logger::TuiTracingSubscriberLayer;
 
 use crate::{app::App, utils::get_domain_from_warpgate_url};
 
@@ -130,6 +132,15 @@ fn main() -> color_eyre::Result<()> {
 
     let _ = dotenvy::dotenv();
     color_eyre::install()?;
+
+    tui_logger::init_logger(tui_logger::LevelFilter::Info)?;
+    tui_logger::set_default_level(tui_logger::LevelFilter::Info);
+
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(TuiTracingSubscriberLayer)
+        .init();
 
     run_tokio_main(args.skip_update)
 }

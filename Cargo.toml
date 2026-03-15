@@ -30,6 +30,9 @@ self_update = { version = "0.43.1", features = [
 ], default-features = false }
 clap = { version = "4.5.60", features = ["derive"] }
 dotenvy = "0.15.7"
+tui-logger = { version = "0.18.1", features = ["crossterm", "tracing-support"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing = "0.1.44"
 
 # Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
 [profile.release]
