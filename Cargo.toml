@@ -12,7 +12,11 @@ futures = "0.3.31"
 ratatui = "0.30.0"
 tokio = { version = "1.40.0", features = ["full"] }
 color-eyre = "0.6.3"
-reqwest = { version = "0.12.28", features = ["json"] }
+reqwest = { version = "0.12.28", features = [
+    "json",
+    "http2",
+    "rustls-tls",
+], default-features = false }
 serde = { version = "1.0.228", features = ["derive"] }
 ratatui-textarea = "0.8.0"
 config = { version = "0.15.19", features = ["toml"], default-features = false }
