@@ -24,6 +24,11 @@ struct Args {
 }
 
 async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        "Starting warpgate-connect"
+    );
+
     let config = config::AppConfig::load()?;
     let config_for_execute = config.clone();
 
@@ -36,6 +41,7 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
 
     // Handle update if the user triggered it
     if *data_for_execute.trigger_update.lock().unwrap() {
+        tracing::info!("User triggered update, starting update process");
         println!("Starting update...");
 
         tokio::task::spawn_blocking(move || {
@@ -57,15 +63,18 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
             match updater.build().unwrap().update() {
                 Ok(status) => {
                     if status.updated() {
+                        tracing::info!(version = %status.version(), "Successfully updated");
                         println!(
                             "Updated to version {}. Please restart the application.",
                             status.version()
                         );
                     } else {
+                        tracing::info!("Already up to date");
                         println!("Already up to date.");
                     }
                 }
                 Err(e) => {
+                    tracing::error!(error = %e, "Update failed");
                     println!("Update failed: {}", e);
                 }
             }
@@ -81,6 +90,7 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
         Some(target) => {
             let config = config_for_execute.lock().unwrap().clone();
             if !config.are_all_required_fields_set() {
+                tracing::error!("Cannot connect: missing required configuration fields");
                 println!(
                     "Cannot connect: Missing required configuration fields. Please check your settings."
                 );
@@ -89,10 +99,12 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
 
             let domain = get_domain_from_warpgate_url(config.warpgate_api_url.as_ref().unwrap());
             if domain.is_none() {
+                tracing::error!(url = ?config.warpgate_api_url, "Cannot connect: failed to extract domain from Warpgate API URL");
                 println!("Cannot connect: Invalid Warpgate API URL.");
                 return Ok(());
             }
 
+            tracing::info!(target = %target.name, domain = ?domain, "Connecting to SSH target");
             println!("Connecting to: '{}'", target.name);
 
             process::Command::new("ssh")
@@ -109,9 +121,13 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
                 .wait()
                 .await?;
 
+            tracing::info!(target = %target.name, "SSH session closed");
             println!("Session closed. Goodbye!");
         }
-        None => println!("No target selected. Quitting without connecting."),
+        None => {
+            tracing::debug!("No target selected, quitting without connecting");
+            println!("No target selected. Quitting without connecting.");
+        }
     }
 
     result

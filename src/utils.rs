@@ -29,6 +29,13 @@ pub fn try_set_first_index(app: &mut App, is_loading: &bool) {
 
 pub fn get_domain_from_warpgate_url(url: &str) -> Option<String> {
     let re = regex_lite::Regex::new(r"^https?://([^:/]+)").unwrap();
-    re.captures(url)
-        .and_then(|caps| caps.get(1).map(|m| m.as_str().to_string()))
+    let result = re
+        .captures(url)
+        .and_then(|caps| caps.get(1).map(|m| m.as_str().to_string()));
+
+    if result.is_none() {
+        tracing::warn!(url = %url, "Failed to extract domain from warpgate URL");
+    }
+
+    result
 }

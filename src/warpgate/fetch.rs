@@ -25,6 +25,7 @@ pub async fn fetch_warpgate_data(data: Data, config: Arc<Mutex<crate::config::Ap
     };
 
     if warpgate_url.is_none() || warpgate_token.is_none() {
+        tracing::warn!("Warpgate API URL or token is not configured, skipping fetch");
         *data.warpgate_targets.lock().unwrap() = Err(color_eyre::eyre::eyre!(
             "Warpgate API URL or token is not configured"
         ));
@@ -32,13 +33,20 @@ pub async fn fetch_warpgate_data(data: Data, config: Arc<Mutex<crate::config::Ap
         return;
     }
 
-    let result = fetch_targets(&warpgate_url.unwrap(), warpgate_token.as_deref()).await;
+    let url = warpgate_url.unwrap();
+    tracing::info!(url = %url, "Fetching warpgate targets");
+    let result = fetch_targets(&url, warpgate_token.as_deref()).await;
 
     match result {
         Ok(targets) => {
+            tracing::info!(
+                count = targets.len(),
+                "Successfully fetched warpgate targets"
+            );
             *data.warpgate_targets.lock().unwrap() = Ok(targets);
         }
         Err(e) => {
+            tracing::error!(error = %e, "Failed to fetch warpgate targets");
             *data.warpgate_targets.lock().unwrap() = Err(e);
         }
     }
@@ -54,16 +62,24 @@ async fn fetch_targets(
     let mut headers = HeaderMap::new();
     if let Some(token) = token {
         headers.insert("X-Warpgate-Token", token.parse().unwrap());
+    } else {
+        tracing::warn!("No authentication token provided for API request");
     }
+
+    tracing::debug!(url = %url, "Building HTTP client for warpgate API");
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .default_headers(headers)
         .timeout(Duration::from_millis(5_000))
         .build()?;
 
-    // Get the list of warpgate targets from the endpoint
-    let warpgate_targets: Vec<crate::warpgate::structs::WarpgateTarget> =
-        client.get(url).send().await?.json().await?;
+    let response = client.get(url).send().await?;
+    let status = response.status();
+    if !status.is_success() {
+        tracing::error!(status = %status, url = %url, "Warpgate API returned non-success status");
+    }
+
+    let warpgate_targets: Vec<crate::warpgate::structs::WarpgateTarget> = response.json().await?;
 
     Ok(warpgate_targets)
 }

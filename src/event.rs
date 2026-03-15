@@ -64,6 +64,7 @@ impl EventHandler {
         let (sender, receiver) = mpsc::unbounded_channel();
         let actor = EventTask::new(sender.clone());
         tokio::spawn(async { actor.run().await });
+        tracing::debug!("Event handler initialized");
         Self { sender, receiver }
     }
 

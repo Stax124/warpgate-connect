@@ -139,8 +139,10 @@ impl<'a> App<'a> {
         let screen = {
             if warpgate_url.is_empty() || warpgate_token.is_empty() || warpgate_username.is_empty()
             {
+                tracing::warn!("Missing warpgate configuration, opening settings screen");
                 AppScreen::WarpgateSettings
             } else {
+                tracing::debug!("Configuration loaded, starting on main screen");
                 AppScreen::Main
             }
         };
@@ -168,6 +170,8 @@ impl<'a> App<'a> {
 
     /// Run the application's main loop.
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
+        tracing::info!(screen = ?self.screen, "Application main loop started");
+
         // Update the input borders to reflect the initially selected input
         self.warpgate_update_input_border();
 
@@ -207,16 +211,22 @@ impl<'a> App<'a> {
                             .and_then(|index| self.filtered_targets.get(index));
 
                         if let Some(target) = selected_target {
+                            tracing::info!(target = %target.name, "Target selected");
                             self.data
                                 .selected_target
                                 .lock()
                                 .unwrap()
                                 .replace(target.clone());
+                        } else {
+                            tracing::warn!(
+                                "Target selection triggered but no target is highlighted"
+                            );
                         }
 
                         self.quit();
                     }
                     AppEvent::RefreshTargets => {
+                        tracing::info!("Refreshing warpgate targets");
                         let data = self.data.clone();
                         let config = self.config.clone();
                         let sender = self.events.sender.clone();
@@ -230,6 +240,7 @@ impl<'a> App<'a> {
                         self.recalculate_filtered_targets();
                     }
                     AppEvent::CheckForUpdate => {
+                        tracing::info!("Checking for application updates");
                         let sender = self.events.sender.clone();
 
                         tokio::task::spawn_blocking(move || {
@@ -262,9 +273,11 @@ impl<'a> App<'a> {
                         });
                     }
                     AppEvent::UpdateAvailable(version) => {
+                        tracing::info!(version = %version, "Update available");
                         *self.data.update_available.lock().unwrap() = Some(version);
                     }
                     AppEvent::TriggerUpdate => {
+                        tracing::info!("User triggered update");
                         *self.data.trigger_update.lock().unwrap() = true;
                         self.quit();
                     }
@@ -293,7 +306,8 @@ impl<'a> App<'a> {
                     AppScreen::Main => AppScreen::WarpgateSettings,
                     AppScreen::WarpgateSettings => AppScreen::Logs,
                     AppScreen::Logs => AppScreen::Main,
-                }
+                };
+                tracing::debug!(screen = ?self.screen, "Switched screen");
             }
             _ => match self.screen {
                 AppScreen::Main => self.handle_key_main(key_event)?,
@@ -377,6 +391,7 @@ impl<'a> App<'a> {
                 config.warpgate_port = warpgate_port;
                 config.save()?;
 
+                tracing::info!("Warpgate settings saved");
                 self.screen = AppScreen::Main;
                 self.events.send(AppEvent::RefreshTargets);
             }
@@ -400,6 +415,7 @@ impl<'a> App<'a> {
 
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
+        tracing::info!("Application quitting");
         self.running = false;
     }
 
@@ -557,5 +573,12 @@ impl<'a> App<'a> {
             })
             .cloned()
             .collect();
+
+        tracing::debug!(
+            count = self.filtered_targets.len(),
+            query = %query,
+            group = ?self.group_filter.as_ref().map(|g| &g.name),
+            "Recalculated filtered targets"
+        );
     }
 }
