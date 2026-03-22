@@ -22,7 +22,7 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
                 .title(" Logs ")
                 .title_style(Style::default().bold().fg(ratatui::style::Color::Yellow)),
         )
-        .state(&mut app.logger_state)
+        .state(&app.logger_state)
         .render(logs_area, buf);
 
     draw_status_bar(app, status_bar_area, buf, &is_loading);
