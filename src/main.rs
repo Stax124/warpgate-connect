@@ -55,11 +55,6 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
                 .no_confirm(true)
                 .show_output(true);
 
-            let auth_token = std::env::var("GITHUB_AUTH_TOKEN");
-            if let Ok(ref token) = auth_token {
-                updater.auth_token(token);
-            }
-
             match updater.build().unwrap().update() {
                 Ok(status) => {
                     if status.updated() {
@@ -146,7 +141,6 @@ fn run_tokio_main(skip_update: bool) -> color_eyre::Result<()> {
 fn main() -> color_eyre::Result<()> {
     let args = Args::parse();
 
-    let _ = dotenvy::dotenv();
     color_eyre::install()?;
 
     tui_logger::init_logger(tui_logger::LevelFilter::Info)?;

@@ -254,10 +254,6 @@ impl<'a> App<'a> {
                                 .bin_name("warpgate-connect")
                                 .current_version(env!("CARGO_PKG_VERSION"));
 
-                            if let Ok(token) = std::env::var("GITHUB_AUTH_TOKEN") {
-                                updater_base.auth_token(token.as_str());
-                            }
-
                             let updater = updater_base.build();
                             if let Ok(updater) = updater
                                 && let Ok(release) = updater.get_latest_release()
