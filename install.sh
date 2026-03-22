@@ -182,7 +182,7 @@ install() {
 
 main() {
     parse_args "$@"
-    info "llmfit installer"
+    info "warpgate-connect installer"
     detect_platform
     fetch_latest_tag
     install
