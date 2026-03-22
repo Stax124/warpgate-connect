@@ -13,3 +13,9 @@ pub struct WarpgateTarget {
     pub kind: String,
     pub name: String,
 }
+
+impl AsRef<str> for WarpgateTarget {
+    fn as_ref(&self) -> &str {
+        &self.name
+    }
+}

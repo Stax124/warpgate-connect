@@ -5,6 +5,7 @@ use crate::{
     warpgate::structs::{WarpgateTarget, WarpgateTargetGroup},
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use nucleo_matcher::pattern::{CaseMatching, Normalization};
 use ratatui::{
     DefaultTerminal,
     layout::Alignment,
@@ -543,6 +544,9 @@ impl<'a> App<'a> {
     }
 
     pub fn recalculate_filtered_targets(&mut self) {
+        let mut matcher =
+            nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT.match_paths());
+
         let warpgate_targets_guard = self.data.warpgate_targets.lock().unwrap();
         let query = self
             .ui_inputs
@@ -552,15 +556,13 @@ impl<'a> App<'a> {
             .map(|s| s.to_lowercase())
             .unwrap_or_default();
 
-        self.filtered_targets = warpgate_targets_guard
+        let pre_filtered_targets = warpgate_targets_guard
             .as_ref()
             .ok()
             .into_iter()
             .flatten()
             // Only show SSH targets
             .filter(|t| t.kind == "Ssh")
-            // Filter by the search query if it exists
-            .filter(|t| t.name.to_lowercase().contains(&query))
             // Apply group filter if it exists
             .filter(|t| {
                 if let Some(group_filter) = &self.group_filter {
@@ -572,7 +574,16 @@ impl<'a> App<'a> {
                 }
             })
             .cloned()
-            .collect();
+            .collect::<Vec<WarpgateTarget>>();
+
+        let matches = nucleo_matcher::pattern::Pattern::parse(
+            &query,
+            CaseMatching::Ignore,
+            Normalization::Smart,
+        )
+        .match_list(pre_filtered_targets, &mut matcher);
+
+        self.filtered_targets = matches.into_iter().map(|m| m.0).collect();
 
         tracing::debug!(
             count = self.filtered_targets.len(),
