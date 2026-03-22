@@ -125,7 +125,7 @@ install() {
 
     verify_checksum
 
-    BIN="$(find "$TMPDIR" -name "$BINARY" -type f | head -1)"
+    BIN="$(find "$TMPDIR" -name "$BINARY*" -type f | head -1)"
     # [ -n "$BIN" ] || err "Binary not found in archive. Release asset may have an unexpected layout."
     chmod +x "$BIN"
 
