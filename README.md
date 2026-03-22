@@ -5,6 +5,8 @@ A TUI client for [Warpgate](https://github.com/warp-tech/warpgate) — a smart S
 ![Rust](https://img.shields.io/badge/rust-stable-orange)
 ![License](https://img.shields.io/github/license/Stax124/warpgate-connect)
 
+![warpgate-connect](/shared/img/warpgate-connect.webp)
+
 ## Features
 
 - Browse all SSH targets from your Warpgate instance in a searchable, filterable table
