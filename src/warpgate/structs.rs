@@ -14,8 +14,31 @@ pub struct WarpgateTarget {
     pub name: String,
 }
 
-impl AsRef<str> for WarpgateTarget {
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct WarpgateFilterableTarget {
+    pub warpgate_target: WarpgateTarget,
+    pub filterable_name: String,
+}
+
+impl WarpgateFilterableTarget {
+    pub fn new(warpgate_target: WarpgateTarget) -> Self {
+        let filterable_name = format!(
+            "{} ({})",
+            warpgate_target.name,
+            warpgate_target
+                .description
+                .as_ref()
+                .unwrap_or(&"".to_string())
+        );
+        Self {
+            warpgate_target,
+            filterable_name,
+        }
+    }
+}
+
+impl AsRef<str> for WarpgateFilterableTarget {
     fn as_ref(&self) -> &str {
-        &self.name
+        &self.filterable_name
     }
 }

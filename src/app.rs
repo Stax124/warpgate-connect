@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     event::{AppEvent, Event, EventHandler},
-    warpgate::structs::{WarpgateTarget, WarpgateTargetGroup},
+    warpgate::structs::{WarpgateFilterableTarget, WarpgateTarget, WarpgateTargetGroup},
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use nucleo_matcher::pattern::{CaseMatching, Normalization};
@@ -577,9 +577,14 @@ impl<'a> App<'a> {
             CaseMatching::Ignore,
             Normalization::Smart,
         )
-        .match_list(pre_filtered_targets, &mut matcher);
+        .match_list(
+            pre_filtered_targets
+                .iter()
+                .map(|t| WarpgateFilterableTarget::new(t.clone())),
+            &mut matcher,
+        );
 
-        self.filtered_targets = matches.into_iter().map(|m| m.0).collect();
+        self.filtered_targets = matches.into_iter().map(|m| m.0.warpgate_target).collect();
 
         tracing::debug!(
             count = self.filtered_targets.len(),
