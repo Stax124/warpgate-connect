@@ -328,7 +328,7 @@ impl<'a> App<'a> {
             _ => match self.screen {
                 AppScreen::Main => self.handle_key_main(key_event)?,
                 AppScreen::WarpgateSettings => self.handle_key_warpgate_settings(key_event)?,
-                AppScreen::Logs => self.handle_key_logs(key_event)?,
+                AppScreen::Logs => {}
                 AppScreen::ConnectionSelection => self.handle_key_connection_type(key_event)?,
             },
         }
@@ -417,14 +417,6 @@ impl<'a> App<'a> {
             KeyCode::BackTab => self.warpgate_select_previous_input(),
             KeyCode::Tab => self.warpgate_select_next_input(),
             _ => self.handle_input(key_event),
-        }
-        Ok(())
-    }
-
-    pub fn handle_key_logs(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
-        match key_event.code {
-            // TODO: Hook the log screen key events
-            _ => {}
         }
         Ok(())
     }

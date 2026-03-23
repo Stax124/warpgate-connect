@@ -127,11 +127,7 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
     }
 
     let selected_target = data_for_execute.selected_target.lock().unwrap().clone();
-    let selected_connection_type = data_for_execute
-        .selected_connection_type
-        .lock()
-        .unwrap()
-        .clone();
+    let selected_connection_type = *data_for_execute.selected_connection_type.lock().unwrap();
 
     if selected_target.is_none() || selected_connection_type.is_none() {
         println!("No target selected. Quitting without connecting.");
