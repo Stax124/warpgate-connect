@@ -27,7 +27,7 @@ pub fn draw_main_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
 }
 
 pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
-    const HEADERS: [&str; 2] = ["Group", "Name"];
+    const HEADERS: [&str; 3] = ["Group", "Name", "Description"];
 
     let header_cells = HEADERS.iter().map(|h| {
         Cell::from(*h).style(
@@ -52,6 +52,8 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
                         .add_modifier(Modifier::BOLD),
                 ),
                 Cell::from(target.name.clone()).style(Style::default().fg(Color::White)),
+                Cell::from(target.description.as_deref().unwrap_or("").to_string())
+                    .style(Style::default().add_modifier(Modifier::DIM)),
             ])
             .height(1)
         })
@@ -65,6 +67,14 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
         .unwrap_or(0);
     let first_column_width = std::cmp::max(6, longest_group_name_length + 2) as u16;
 
+    let longest_name_length = app
+        .filtered_targets
+        .iter()
+        .map(|t| t.name.len())
+        .max()
+        .unwrap_or(0);
+    let name_column_width = std::cmp::max(4, longest_name_length + 2) as u16;
+
     // Check if we have any target selected, if not, select the first one (if it exists)
     if app.table_state.selected().is_none() && !rows.is_empty() {
         app.table_state.select(Some(0));
@@ -72,7 +82,11 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
 
     let table = Table::new(
         rows,
-        [Constraint::Length(first_column_width), Constraint::Min(0)],
+        [
+            Constraint::Length(first_column_width),
+            Constraint::Length(name_column_width),
+            Constraint::Min(0),
+        ],
     )
     .header(header)
     .row_highlight_style(
@@ -101,7 +115,7 @@ pub fn draw_search_bar_and_filters(app: &App, area: Rect, buf: &mut Buffer) {
             }
         })
         .border_style(Style::new().add_modifier(Modifier::BOLD))
-        .title(" Group [G] ")
+        .title(" Group [⇧G] ")
         .padding(Padding::horizontal(1));
 
     let selected_group = app.group_filter.as_ref();
