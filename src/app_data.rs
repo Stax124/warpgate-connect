@@ -1,10 +1,18 @@
 use std::sync::{Arc, Mutex};
 
+#[derive(Debug, Clone, Copy, strum::Display)]
+#[strum(serialize_all = "UPPERCASE")]
+pub enum ConnectionType {
+    Ssh,
+    Sftp,
+}
+
 #[derive(Debug, Clone)]
 pub struct Data {
     pub warpgate_targets:
         Arc<Mutex<Result<Vec<crate::warpgate::structs::WarpgateTarget>, color_eyre::Report>>>,
     pub selected_target: Arc<Mutex<Option<crate::warpgate::structs::WarpgateTarget>>>,
+    pub selected_connection_type: Arc<Mutex<Option<ConnectionType>>>,
     pub loading_targets: Arc<Mutex<bool>>,
     pub should_set_list_element_index: Arc<Mutex<bool>>,
     /// Stores the latest available version string when an update is available.
@@ -18,6 +26,7 @@ impl Data {
         Self {
             warpgate_targets: Arc::new(Mutex::new(Ok(Vec::new()))),
             selected_target: Arc::new(Mutex::new(None)),
+            selected_connection_type: Arc::new(Mutex::new(None)),
             loading_targets: Arc::new(Mutex::new(true)),
             should_set_list_element_index: Arc::new(Mutex::new(true)),
             update_available: Arc::new(Mutex::new(None)),

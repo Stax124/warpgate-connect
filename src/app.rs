@@ -21,6 +21,7 @@ pub enum AppScreen {
     Main,
     WarpgateSettings,
     Logs,
+    ConnectionSelection,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter)]
@@ -67,6 +68,7 @@ impl<'a> AppInputs<'a> {
                         .fg(Color::Cyan)
                         .add_modifier(Modifier::BOLD),
                 );
+                text_area.set_placeholder_style(Style::default().add_modifier(Modifier::DIM));
                 text_area
             },
             warpgate_url_input: {
@@ -74,6 +76,7 @@ impl<'a> AppInputs<'a> {
                 text_area.set_block(get_textarea_block(" Warpgate URL "));
                 text_area.set_placeholder_text("Warpgate URL...");
                 text_area.set_cursor_line_style(Style::default().add_modifier(Modifier::BOLD));
+                text_area.set_placeholder_style(Style::default().add_modifier(Modifier::DIM));
 
                 text_area
             },
@@ -82,6 +85,8 @@ impl<'a> AppInputs<'a> {
                 text_area.set_block(get_textarea_block(" Warpgate Token "));
                 text_area.set_placeholder_text("Warpgate Token...");
                 text_area.set_cursor_line_style(Style::default().add_modifier(Modifier::BOLD));
+                text_area.set_placeholder_style(Style::default().add_modifier(Modifier::DIM));
+
                 text_area.set_mask_char('●');
                 text_area
             },
@@ -90,6 +95,7 @@ impl<'a> AppInputs<'a> {
                 text_area.set_block(get_textarea_block(" Warpgate Username "));
                 text_area.set_placeholder_text("Warpgate Username...");
                 text_area.set_cursor_line_style(Style::default().add_modifier(Modifier::BOLD));
+                text_area.set_placeholder_style(Style::default().add_modifier(Modifier::DIM));
                 text_area
             },
             warpgate_port_input: {
@@ -97,6 +103,7 @@ impl<'a> AppInputs<'a> {
                 text_area.set_block(get_textarea_block(" Warpgate Port "));
                 text_area.set_placeholder_text("2222");
                 text_area.set_cursor_line_style(Style::default().add_modifier(Modifier::BOLD));
+                text_area.set_placeholder_style(Style::default().add_modifier(Modifier::DIM));
                 text_area
             },
         }
@@ -106,7 +113,8 @@ impl<'a> AppInputs<'a> {
 pub struct App<'a> {
     pub running: bool,
     pub screen: AppScreen,
-    pub table_state: TableState,
+    pub table_targets_selection_state: TableState,
+    pub table_connection_selection_state: TableState,
     pub events: EventHandler,
     pub data: crate::app_data::Data,
     pub config: Arc<Mutex<crate::config::AppConfig>>,
@@ -148,12 +156,17 @@ impl<'a> App<'a> {
             }
         };
 
+        // Pre-select the first element in the connection selection screen
+        let mut table_connection_selection_state = TableState::default();
+        table_connection_selection_state.select_first();
+
         Self {
             data,
             config,
             running: true,
             screen,
-            table_state: TableState::default(),
+            table_targets_selection_state: TableState::default(),
+            table_connection_selection_state,
             events: EventHandler::new(),
             group_filter: None,
             ui_inputs: AppInputs::new(
@@ -199,15 +212,10 @@ impl<'a> App<'a> {
                     _ => {}
                 },
                 Event::App(app_event) => match app_event {
-                    AppEvent::NextItem => self.table_state.select_next(),
-                    AppEvent::PrevItem => self.table_state.select_previous(),
-                    AppEvent::FirstItem => self.table_state.select_first(),
-                    AppEvent::LastItem => self.table_state.select_last(),
-                    AppEvent::Deselect => self.table_state.select(None),
                     AppEvent::Quit => self.quit(),
                     AppEvent::TargetSelected => {
                         let selected_target = self
-                            .table_state
+                            .table_targets_selection_state
                             .selected()
                             .and_then(|index| self.filtered_targets.get(index));
 
@@ -223,6 +231,16 @@ impl<'a> App<'a> {
                                 "Target selection triggered but no target is highlighted"
                             );
                         }
+
+                        self.screen = AppScreen::ConnectionSelection;
+                    }
+                    AppEvent::ConnectionTypeSelected(connection_type) => {
+                        tracing::info!(connection_type = ?connection_type, "Connection type selected");
+                        self.data
+                            .selected_connection_type
+                            .lock()
+                            .unwrap()
+                            .replace(connection_type);
 
                         self.quit();
                     }
@@ -303,6 +321,7 @@ impl<'a> App<'a> {
                     AppScreen::Main => AppScreen::WarpgateSettings,
                     AppScreen::WarpgateSettings => AppScreen::Logs,
                     AppScreen::Logs => AppScreen::Main,
+                    AppScreen::ConnectionSelection => AppScreen::ConnectionSelection,
                 };
                 tracing::debug!(screen = ?self.screen, "Switched screen");
             }
@@ -310,6 +329,7 @@ impl<'a> App<'a> {
                 AppScreen::Main => self.handle_key_main(key_event)?,
                 AppScreen::WarpgateSettings => self.handle_key_warpgate_settings(key_event)?,
                 AppScreen::Logs => self.handle_key_logs(key_event)?,
+                AppScreen::ConnectionSelection => self.handle_key_connection_type(key_event)?,
             },
         }
         Ok(())
@@ -347,12 +367,11 @@ impl<'a> App<'a> {
 
                 self.recalculate_filtered_targets();
             }
-            KeyCode::Down => self.events.send(AppEvent::NextItem),
-            KeyCode::Up => self.events.send(AppEvent::PrevItem),
-            KeyCode::Home => self.events.send(AppEvent::FirstItem),
-            KeyCode::End => self.events.send(AppEvent::LastItem),
             KeyCode::Enter => self.events.send(AppEvent::TargetSelected),
-            _ => self.handle_input(key_event),
+            _ => {
+                self.handle_table_input(key_event);
+                self.handle_input(key_event);
+            }
         }
         Ok(())
     }
@@ -492,6 +511,7 @@ impl<'a> App<'a> {
                 WarpgateSettingsScreenInput::Port => &mut self.ui_inputs.warpgate_port_input,
             },
             AppScreen::Logs => return,
+            AppScreen::ConnectionSelection => return,
         };
 
         match key_event.code {
@@ -592,5 +612,46 @@ impl<'a> App<'a> {
             group = ?self.group_filter.as_ref().map(|g| &g.name),
             "Recalculated filtered targets"
         );
+    }
+
+    pub fn handle_table_input(&mut self, key_event: KeyEvent) {
+        let current_table_state = match self.screen {
+            AppScreen::Main => &mut self.table_targets_selection_state,
+            AppScreen::ConnectionSelection => &mut self.table_connection_selection_state,
+            _ => return,
+        };
+
+        match key_event.code {
+            KeyCode::Down => current_table_state.select_next(),
+            KeyCode::Up => current_table_state.select_previous(),
+            KeyCode::Home => current_table_state.select_first(),
+            KeyCode::End => current_table_state.select_last(),
+            _ => {}
+        }
+    }
+
+    pub fn handle_key_connection_type(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
+        match key_event.code {
+            KeyCode::Enter => {
+                let selected_connection_type = match self
+                    .table_connection_selection_state
+                    .selected()
+                {
+                    Some(0) => crate::app_data::ConnectionType::Ssh,
+                    Some(1) => crate::app_data::ConnectionType::Sftp,
+                    _ => {
+                        tracing::warn!(
+                            "Connection type selection triggered but no connection type is highlighted"
+                        );
+                        return Ok(());
+                    }
+                };
+
+                self.events
+                    .send(AppEvent::ConnectionTypeSelected(selected_connection_type));
+            }
+            _ => self.handle_table_input(key_event),
+        }
+        Ok(())
     }
 }

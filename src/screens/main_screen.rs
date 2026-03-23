@@ -76,8 +76,8 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
     let name_column_width = std::cmp::max(4, longest_name_length + 2) as u16;
 
     // Check if we have any target selected, if not, select the first one (if it exists)
-    if app.table_state.selected().is_none() && !rows.is_empty() {
-        app.table_state.select(Some(0));
+    if app.table_targets_selection_state.selected().is_none() && !rows.is_empty() {
+        app.table_targets_selection_state.select(Some(0));
     }
 
     let table = Table::new(
@@ -96,7 +96,7 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
     )
     .highlight_symbol("▶ ");
 
-    StatefulWidget::render(table, area, buf, &mut app.table_state);
+    StatefulWidget::render(table, area, buf, &mut app.table_targets_selection_state);
 }
 
 pub fn draw_search_bar_and_filters(app: &App, area: Rect, buf: &mut Buffer) {

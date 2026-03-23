@@ -3,6 +3,8 @@ use crossterm::event::Event as CrosstermEvent;
 use futures::{FutureExt, StreamExt};
 use tokio::sync::mpsc;
 
+use crate::app_data::ConnectionType;
+
 /// Representation of all possible events.
 #[derive(Clone, Debug)]
 pub enum Event {
@@ -23,20 +25,12 @@ pub enum Event {
 /// You can extend this enum with your own custom events.
 #[derive(Clone, Debug)]
 pub enum AppEvent {
-    /// Move to the next item.
-    NextItem,
-    /// Move to the previous item.
-    PrevItem,
-    /// Jump to the first item.
-    FirstItem,
-    /// Jump to the last item.
-    LastItem,
-    /// Deselect the current item.
-    Deselect,
     /// Quit the application.
     Quit,
     /// A target was selected.
     TargetSelected,
+    /// A connection type was selected.
+    ConnectionTypeSelected(ConnectionType),
     /// Refresh the list of warpgate targets.
     RefreshTargets,
     /// Recalculate the filtered targets (e.g. after a fetch completes).

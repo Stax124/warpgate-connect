@@ -21,7 +21,7 @@ pub fn try_set_first_index(app: &mut App, is_loading: &bool) {
         if let Ok(targets) = warpgate_targets.as_ref()
             && !targets.is_empty()
         {
-            app.table_state.select(Some(0));
+            app.table_targets_selection_state.select(Some(0));
         }
         *should_set_list_element_index_guard = false;
     }
