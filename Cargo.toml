@@ -21,7 +21,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 ratatui-textarea = "0.8.0"
 config = { version = "0.15.19", features = ["toml"], default-features = false }
 directories = "6.0.0"
-toml = "1.0.3"
+toml = "1.1.0"
 regex-lite = "0.1.9"
 strum = { version = "0.27.2", features = ["derive"] }
 self_update = { version = "0.43.1", features = [
