@@ -11,7 +11,6 @@ env:
 jobs:
   check-version:
     name: Ensure Tag Matches Cargo.toml
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
