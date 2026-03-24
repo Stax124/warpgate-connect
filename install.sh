@@ -13,7 +13,7 @@ set -e
 
 REPO="Stax124/warpgate-connect"
 BINARY="warpgate-connect"
-LOCAL_INSTALL=""
+LOCAL_INSTALL="1"
 
 # --- helpers ---
 
@@ -30,14 +30,10 @@ need() {
 parse_args() {
     while [ $# -gt 0 ]; do
         case "$1" in
-            --local|-l)
-                LOCAL_INSTALL="1"
-                ;;
             --help|-h)
                 echo "Usage: install.sh [OPTIONS]"
                 echo ""
                 echo "Options:"
-                echo "  --local, -l    Install to ~/.local/bin (no sudo required)"
                 echo "  --help, -h     Show this help message"
                 exit 0
                 ;;
