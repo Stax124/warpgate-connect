@@ -9,7 +9,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check-version:
+    name: Ensure Tag Matches Cargo.toml
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+      - name: Check Cargo Version Matches Tag
+        uses: spice-labs-inc/action-check-version@main
+
   build:
+    needs: check-version
     name: build-${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
