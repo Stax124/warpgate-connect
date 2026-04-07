@@ -57,7 +57,7 @@ On first launch, warpgate-connect will open the settings screen. Configuration i
 **config.toml example:**
 
 ```toml
-warpgate_api_url  = "https://warpgate.example.com/api/targets"
+warpgate_api_url  = "https://warpgate.example.com/@warpgate/api/targets"
 warpgate_username = "admin"
 warpgate_token    = "your-api-token"
 warpgate_port     = 2222
