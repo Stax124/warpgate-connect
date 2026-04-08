@@ -24,7 +24,7 @@ directories = "6.0.0"
 toml = "1.0.3"
 regex-lite = "0.1.9"
 strum = { version = "0.27.2", features = ["derive"] }
-self_update = { version = "0.43.1", features = [
+self_update = { version = "0.44.0", features = [
     "rustls",
     "reqwest",
 ], default-features = false }
