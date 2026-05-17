@@ -23,7 +23,7 @@ config = { version = "0.15.19", features = ["toml"], default-features = false }
 directories = "6.0.0"
 toml = "1.0.3"
 regex-lite = "0.1.9"
-strum = { version = "0.27.2", features = ["derive"] }
+strum = { version = "0.28.0", features = ["derive"] }
 self_update = { version = "0.43.1", features = [
     "rustls",
     "reqwest",
