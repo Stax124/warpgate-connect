@@ -1,6 +1,6 @@
 [package]
 name = "warpgate-connect"
-version = "0.8.2"
+version = "0.8.3"
 description = "A TUI client for connecting to Warpgate SSH targets"
 authors = ["Stax124 <novaktomas124@proton.me>"]
 license = "MIT"
