@@ -12,19 +12,19 @@ futures = "0.3.31"
 ratatui = "0.30.0"
 tokio = { version = "1.40.0", features = ["full"] }
 color-eyre = "0.6.3"
-reqwest = { version = "0.12.28", features = [
+reqwest = { version = "0.13", features = [
     "json",
     "http2",
-    "rustls-tls",
+    "rustls",
 ], default-features = false }
 serde = { version = "1.0.228", features = ["derive"] }
-ratatui-textarea = "0.8.0"
+ratatui-textarea = "0.9"
 config = { version = "0.15.19", features = ["toml"], default-features = false }
 directories = "6.0.0"
 toml = "1.0.3"
 regex-lite = "0.1.9"
-strum = { version = "0.27.2", features = ["derive"] }
-self_update = { version = "0.43.1", features = [
+strum = { version = "0.28", features = ["derive"] }
+self_update = { version = "0.44", features = [
     "rustls",
     "reqwest",
 ], default-features = false }
