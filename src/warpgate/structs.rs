@@ -8,13 +8,18 @@ pub struct WarpgateTargetGroup {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct WarpgateTarget {
     pub description: Option<String>,
-    pub external_host: Option<String>,
     pub group: Option<WarpgateTargetGroup>,
     pub kind: String,
     pub name: String,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+impl WarpgateTarget {
+    pub fn is_ssh(&self) -> bool {
+        self.kind == "Ssh"
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct WarpgateFilterableTarget {
     pub warpgate_target: WarpgateTarget,
     pub filterable_name: String,
@@ -25,10 +30,7 @@ impl WarpgateFilterableTarget {
         let filterable_name = format!(
             "{} ({})",
             warpgate_target.name,
-            warpgate_target
-                .description
-                .as_ref()
-                .unwrap_or(&"".to_string())
+            warpgate_target.description.as_deref().unwrap_or("")
         );
         Self {
             warpgate_target,
@@ -42,3 +44,7 @@ impl AsRef<str> for WarpgateFilterableTarget {
         &self.filterable_name
     }
 }
+
+#[cfg(test)]
+#[path = "structs_test.rs"]
+mod tests;

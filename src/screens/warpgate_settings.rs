@@ -1,51 +1,81 @@
-use ratatui::layout::{Alignment, Constraint, Layout};
-use ratatui::style::{Color, Style};
+use ratatui::layout::{Constraint, Layout};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Padding, Paragraph, Widget};
+use ratatui::widgets::{Padding, Paragraph, Widget};
 use ratatui::{buffer::Buffer, layout::Rect};
 use ratatui_textarea::TextArea;
+use strum::IntoEnumIterator;
 
-use crate::app::App;
-use crate::screens::common::draw_status_bar;
+use crate::app::{App, AppScreen, WarpgateSettingsScreenInput};
+use crate::screens::common::{
+    centered_rect, current_status, draw_card, draw_footer, draw_header, draw_rule,
+};
+use crate::theme;
 
-fn validate_url(text_area: &mut TextArea) {
-    let url = text_area.lines()[0].trim();
-    let is_valid = url.starts_with("http://") || url.starts_with("https://");
+const CARD_WIDTH: u16 = 62;
+const LABEL_WIDTH: u16 = 11;
 
-    text_area.set_cursor_line_style(Style::default().fg(if is_valid {
-        Color::Green
-    } else {
-        Color::Red
-    }));
-}
+/// Catches the common mistake of entering the Warpgate dashboard URL instead of the API URL.
+fn check_url_for_known_path(text_area: &TextArea) -> Option<String> {
+    const KNOWN_PATH: &str = "/@warpgate/api/targets";
 
-/// Check that the URL ends like a known path (e.g. /api/v1), if not, display a warning that the user might have entered the wrong URL.
-/// Should catch common mistakes like entering the warpgate dashboard URL instead of the API URL.
-fn check_url_for_known_path(text_area: &mut TextArea) -> Option<String> {
-    let url = text_area.lines()[0].trim();
-    let known_path = "/@warpgate/api/targets";
-    let has_known_path = url.ends_with(known_path);
-
-    if has_known_path {
+    let url = text_area.lines().first().map_or("", |line| line.trim());
+    if url.ends_with(KNOWN_PATH) {
         return None;
     }
 
-    Some(format!("Warning: URL does not end with {}", known_path))
-}
-
-fn validate_token(text_area: &mut TextArea) {
-    let token = text_area.lines()[0].trim();
-    let is_valid = !token.is_empty();
-
-    text_area.set_cursor_line_style(Style::default().fg(if is_valid {
-        Color::Green
-    } else {
-        Color::Red
-    }));
+    Some(format!("! should end with {KNOWN_PATH}"))
 }
 
 pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
-    let has_known_path = check_url_for_known_path(&mut app.ui_inputs.warpgate_url_input);
+    let [
+        header_area,
+        header_rule_area,
+        body_area,
+        body_rule_area,
+        footer_area,
+    ] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Fill(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .areas(area);
+
+    let status = current_status(app);
+    draw_header(
+        AppScreen::WarpgateSettings,
+        "config.toml",
+        status,
+        header_area,
+        buf,
+    );
+    draw_rule(header_rule_area, buf);
+    draw_settings_card(app, body_area, buf);
+    draw_rule(body_rule_area, buf);
+
+    let update_version = app.data.update_available.lock().unwrap().clone();
+    draw_footer(
+        &[
+            ("F1", "keys", true),
+            ("↵", "save", true),
+            ("⇥", "next field", true),
+            ("^N", "logs", true),
+        ],
+        status,
+        update_version.as_deref(),
+        footer_area,
+        buf,
+    );
+}
+
+fn draw_settings_card(app: &mut App, area: Rect, buf: &mut Buffer) {
+    // One row per field, plus the URL warning's own row, which is always reserved so that the
+    // card does not shift by a row when the warning appears.
+    let card_area = centered_rect(CARD_WIDTH, 9, area);
+
+    let inner_area = draw_card("Warpgate", Padding::new(2, 2, 1, 1), card_area, buf);
 
     let [
         url_area,
@@ -53,49 +83,47 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
         username_area,
         token_area,
         port_area,
-        fill_area,
-        status_bar_area,
     ] = Layout::vertical([
-        Constraint::Length(3),
-        Constraint::Length(if has_known_path.is_some() { 1 } else { 0 }),
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Fill(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
         Constraint::Length(1),
     ])
-    .areas(area);
+    .areas(inner_area);
 
-    // URL input
-    validate_url(&mut app.ui_inputs.warpgate_url_input);
-    app.ui_inputs.warpgate_url_input.render(url_area, buf);
+    let selected = app.warpgate_selected_input;
 
-    // Optional warning if the URL does not end with a known path
-    if let Some(warning) = has_known_path {
-        Paragraph::new(warning)
-            .style(Style::default().fg(Color::Yellow).bold())
-            .render(url_warning_area, buf);
+    // Zipped against the enum so that the draw order cannot drift from the order `Tab` walks.
+    for (input, field_area) in
+        WarpgateSettingsScreenInput::iter().zip([url_area, username_area, token_area, port_area])
+    {
+        let [label_area, value_area] =
+            Layout::horizontal([Constraint::Length(LABEL_WIDTH), Constraint::Fill(1)])
+                .areas(field_area);
+
+        Line::from(Span::styled(
+            input.label(),
+            if input == selected {
+                Style::default()
+                    .fg(theme::ACCENT)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme::MUTED)
+            },
+        ))
+        .render(label_area, buf);
+
+        app.get_warpgate_input_by_enum(input)
+            .render(value_area, buf);
     }
 
-    // Token input
-    validate_token(&mut app.ui_inputs.warpgate_token_input);
-    app.ui_inputs.warpgate_token_input.render(token_area, buf);
-
-    // Username and port inputs (no validation)
-    app.ui_inputs
-        .warpgate_username_input
-        .render(username_area, buf);
-    app.ui_inputs.warpgate_port_input.render(port_area, buf);
-
-    // Instructions at the bottom
-    Paragraph::new(Line::from(vec![
-        Span::raw("Press "),
-        Span::styled("[Enter]", Style::default().fg(Color::Yellow).bold()),
-        Span::raw(" to save settings"),
-    ]))
-    .alignment(Alignment::Center)
-    .block(Block::default().padding(Padding::top(1)))
-    .render(fill_area, buf);
-
-    draw_status_bar(app, status_bar_area, buf, &false);
+    if let Some(warning) = check_url_for_known_path(&app.ui_inputs.warpgate_url_input) {
+        let [_, warning_area] =
+            Layout::horizontal([Constraint::Length(LABEL_WIDTH), Constraint::Fill(1)])
+                .areas(url_warning_area);
+        Paragraph::new(warning)
+            .style(Style::default().fg(theme::WARN))
+            .render(warning_area, buf);
+    }
 }

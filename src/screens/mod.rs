@@ -1,5 +1,7 @@
 pub mod common;
-pub mod connection_selection;
+pub mod connect_modal;
+pub mod group_picker;
+pub mod help;
 pub mod logs;
 pub mod main_screen;
 pub mod warpgate_settings;

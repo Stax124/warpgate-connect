@@ -1,8 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use color_eyre::eyre::Context;
+use color_eyre::eyre::{Context, eyre};
 use config::{File, FileFormat};
 use serde::{Deserialize, Serialize};
+
+pub const DEFAULT_WARPGATE_PORT: u16 = 2222;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct AppConfig {
@@ -13,37 +15,36 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub fn get_config_file_path() -> std::path::PathBuf {
-        let Some(project_dirs) =
+    pub fn get_config_file_path() -> color_eyre::Result<std::path::PathBuf> {
+        let project_dirs =
             directories::ProjectDirs::from("com", "warpgate-connect", "warpgate-connect")
-        else {
-            panic!("Could not determine project directories");
-        };
+                .ok_or_else(|| eyre!("Could not determine the user configuration directory"))?;
 
-        let config_dir = project_dirs.config_dir();
-
-        config_dir.join("config.toml")
+        Ok(project_dirs.config_dir().join("config.toml"))
     }
 
     pub fn load() -> color_eyre::Result<Arc<Mutex<Self>>> {
-        let config_path = Self::get_config_file_path();
+        let config_path = Self::get_config_file_path()?;
         tracing::info!(path = %config_path.display(), "Loading configuration");
 
         let cfg = config::Config::builder()
             .set_default::<&str, Option<String>>("warpgate_api_url", None)?
             .set_default::<&str, Option<String>>("warpgate_token", None)?
             .set_default::<&str, Option<String>>("warpgate_username", None)?
-            .set_default::<&str, Option<u16>>("warpgate_port", 2222.into())?
+            .set_default::<&str, Option<u16>>("warpgate_port", DEFAULT_WARPGATE_PORT.into())?
             .add_source(
-                File::from(Self::get_config_file_path())
+                File::from(config_path.clone())
                     .required(false)
                     .format(FileFormat::Toml),
             )
             .build()?;
 
-        let app_config = cfg.try_deserialize::<AppConfig>().context(
-            "Failed to deserialize configuration. Please check your config file for errors.",
-        )?;
+        let app_config = cfg.try_deserialize::<AppConfig>().with_context(|| {
+            format!(
+                "Failed to deserialize configuration at {}. Please check your config file for errors.",
+                config_path.display()
+            )
+        })?;
 
         if !app_config.are_all_required_fields_set() {
             tracing::warn!(
@@ -58,15 +59,17 @@ impl AppConfig {
     }
 
     pub fn save(&self) -> color_eyre::Result<()> {
-        let config_path = Self::get_config_file_path();
+        let config_path = Self::get_config_file_path()?;
         tracing::info!(path = %config_path.display(), "Saving configuration");
 
         if let Some(parent) = config_path.parent() {
-            std::fs::create_dir_all(parent)?;
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create {}", parent.display()))?;
         }
 
         let toml_string = toml::to_string_pretty(self)?;
-        std::fs::write(&config_path, toml_string)?;
+        std::fs::write(&config_path, toml_string)
+            .with_context(|| format!("Failed to write {}", config_path.display()))?;
 
         tracing::info!(path = %config_path.display(), "Configuration saved");
         Ok(())
