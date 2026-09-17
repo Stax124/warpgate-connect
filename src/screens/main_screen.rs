@@ -331,8 +331,11 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
     );
 
     if needs_scrollbar {
-        let mut scrollbar_state = ScrollbarState::new(app.filtered_targets.len())
-            .position(app.table_targets_selection_state.offset());
+        let visible_rows = table_area.height.saturating_sub(1) as usize;
+        let mut scrollbar_state =
+            ScrollbarState::new(app.filtered_targets.len().saturating_sub(visible_rows) + 1)
+                .viewport_content_length(visible_rows)
+                .position(app.table_targets_selection_state.offset());
         StatefulWidget::render(
             Scrollbar::new(ScrollbarOrientation::VerticalRight),
             scrollbar_area,
