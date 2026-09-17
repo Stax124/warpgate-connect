@@ -48,7 +48,7 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
         .map(|row| {
             let (symbol, color) = match row.group.as_ref() {
                 Some(group) => ("●", get_color_from_group_color(group.color.as_deref())),
-                None => ("○", theme::MUTED),
+                None => ("○", theme::DIM_TEXT),
             };
 
             Row::new(vec![
@@ -60,7 +60,7 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
                 )
                 .style(Style::default().fg(theme::TEXT)),
                 Cell::from(Line::from(row.count.to_string()).right_aligned())
-                    .style(Style::default().fg(theme::MUTED)),
+                    .style(Style::default().fg(theme::DIM_TEXT)),
             ])
             .height(1)
         })
