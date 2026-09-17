@@ -257,7 +257,7 @@ fn highlighted_name(name: &str, name_indices: &[u32]) -> Line<'static> {
 }
 
 pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
-    const HEADERS: [&str; 3] = ["NAME", "GROUP", "DESCRIPTION"];
+    const HEADERS: [&str; 3] = ["GROUP", "NAME", "DESCRIPTION"];
 
     let needs_scrollbar = app.filtered_targets.len() > area.height.saturating_sub(1) as usize;
     let [table_area, scrollbar_area] = Layout::horizontal([
@@ -279,12 +279,12 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
             let group_color =
                 get_color_from_group_color(target.group.as_ref().and_then(|g| g.color.as_deref()));
             Row::new(vec![
-                Cell::from(highlighted_name(&target.name, &matched.name_indices)),
                 Cell::from(target.group.as_ref().map_or("", |g| g.name.as_str())).style(
                     Style::default()
                         .fg(group_color)
                         .add_modifier(Modifier::BOLD),
                 ),
+                Cell::from(highlighted_name(&target.name, &matched.name_indices)),
                 Cell::from(target.description.as_deref().unwrap_or(""))
                     .style(Style::default().fg(theme::DIM_TEXT)),
             ])
@@ -316,8 +316,8 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
     let table = highlighted_table(Table::new(
         rows,
         [
-            Constraint::Length(name_column_width),
             Constraint::Length(group_column_width),
+            Constraint::Length(name_column_width),
             Constraint::Min(0),
         ],
     ))
