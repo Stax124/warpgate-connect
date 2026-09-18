@@ -1,24 +1,24 @@
 use color_eyre::eyre::OptionExt;
 use crossterm::event::Event as CrosstermEvent;
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use tokio::sync::mpsc;
 
-use crate::app_data::ConnectionType;
+use crate::app::ConnectionType;
+use crate::warpgate::target::WarpgateTarget;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum Event {
     Crossterm(CrosstermEvent),
     App(AppEvent),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum AppEvent {
     Quit,
     TargetSelected,
     ConnectionTypeSelected(ConnectionType),
     RefreshTargets,
-    /// Recalculate the filtered targets (e.g. after a fetch completes).
-    RecalculateTargets,
+    TargetsFetched(color_eyre::Result<Vec<WarpgateTarget>>),
     CheckForUpdate,
     UpdateAvailable(String),
     TriggerUpdate,
@@ -33,8 +33,7 @@ pub struct EventHandler {
 impl EventHandler {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::unbounded_channel();
-        let actor = EventTask::new(sender.clone());
-        tokio::spawn(async { actor.run().await });
+        tokio::spawn(forward_crossterm_events(sender.clone()));
         tracing::debug!("Event handler initialized");
         Self { sender, receiver }
     }
@@ -60,34 +59,18 @@ impl EventHandler {
 }
 
 /// Forwards crossterm events to the application until the receiver is dropped.
-struct EventTask {
-    sender: mpsc::UnboundedSender<Event>,
-}
-
-impl EventTask {
-    fn new(sender: mpsc::UnboundedSender<Event>) -> Self {
-        Self { sender }
-    }
-
-    async fn run(self) -> color_eyre::Result<()> {
-        let mut reader = crossterm::event::EventStream::new();
-        loop {
-            let crossterm_event = reader.next().fuse();
-            tokio::select! {
-              _ = self.sender.closed() => {
-                break;
-              }
-              Some(Ok(evt)) = crossterm_event => {
-                self.send(Event::Crossterm(evt));
-              }
-            };
-        }
-        Ok(())
-    }
-
-    fn send(&self, event: Event) {
-        // Ignores the result because shutting down the app drops the receiver, which causes the send
-        // operation to fail. This is expected behavior and should not panic.
-        let _ = self.sender.send(event);
+async fn forward_crossterm_events(sender: mpsc::UnboundedSender<Event>) {
+    let mut reader = crossterm::event::EventStream::new();
+    loop {
+        tokio::select! {
+          _ = sender.closed() => {
+            break;
+          }
+          Some(Ok(event)) = reader.next() => {
+            // Ignores the result because shutting down the app drops the receiver, which causes
+            // the send operation to fail. This is expected behavior and should not panic.
+            let _ = sender.send(Event::Crossterm(event));
+          }
+        };
     }
 }

@@ -8,16 +8,13 @@ use ratatui::{
 use strum::IntoEnumIterator;
 
 use crate::{
-    app::App,
-    app_data::ConnectionType,
+    app::{App, ConnectionType},
     screens::common::{draw_modal, draw_split_row, highlighted_table, key_hints},
     theme,
-    utils::get_color_from_group_color,
 };
 
 pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
-    let selected_target = app.data.selected_target.lock().unwrap().clone();
-    let Some(target) = selected_target else {
+    let Some(target) = app.selected_target.clone() else {
         tracing::warn!("Connect modal is open with no selected target");
         return;
     };
@@ -43,7 +40,7 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
         target_line.push(Span::styled("  ·  ", Style::default().fg(theme::MUTED)));
         target_line.push(Span::styled(
             group.name.clone(),
-            Style::default().fg(get_color_from_group_color(group.color.as_deref())),
+            Style::default().fg(theme::group_color(group.color.as_deref())),
         ));
     }
     Line::from(target_line).render(target_area, buf);

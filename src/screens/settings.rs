@@ -11,6 +11,7 @@ use crate::screens::common::{
     centered_rect, current_status, draw_card, draw_footer, draw_header, draw_rule,
 };
 use crate::theme;
+use crate::utils::first_line;
 
 const CARD_WIDTH: u16 = 62;
 const LABEL_WIDTH: u16 = 11;
@@ -19,8 +20,7 @@ const LABEL_WIDTH: u16 = 11;
 fn check_url_for_known_path(text_area: &TextArea) -> Option<String> {
     const KNOWN_PATH: &str = "/@warpgate/api/targets";
 
-    let url = text_area.lines().first().map_or("", |line| line.trim());
-    if url.ends_with(KNOWN_PATH) {
+    if first_line(text_area).trim().ends_with(KNOWN_PATH) {
         return None;
     }
 
@@ -44,18 +44,11 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
     .areas(area);
 
     let status = current_status(app);
-    draw_header(
-        AppScreen::WarpgateSettings,
-        "config.toml",
-        status,
-        header_area,
-        buf,
-    );
+    draw_header(AppScreen::Settings, "config.toml", status, header_area, buf);
     draw_rule(header_rule_area, buf);
     draw_settings_card(app, body_area, buf);
     draw_rule(body_rule_area, buf);
 
-    let update_version = app.data.update_available.lock().unwrap().clone();
     draw_footer(
         &[
             ("F1", "keys", true),
@@ -64,7 +57,7 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
             ("^N", "logs", true),
         ],
         status,
-        update_version.as_deref(),
+        app.update_available.as_deref(),
         footer_area,
         buf,
     );

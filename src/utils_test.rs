@@ -5,7 +5,6 @@ fn target(name: &str, kind: &str, group: Option<&str>) -> WarpgateTarget {
         description: Some(format!("{name} host")),
         group: group.map(|name| WarpgateTargetGroup {
             name: name.to_string(),
-            id: format!("grp-{name}"),
             color: None,
         }),
         kind: kind.to_string(),
@@ -59,7 +58,6 @@ fn non_ssh_targets_are_never_offered() {
 fn group_filter_excludes_other_groups_and_ungrouped_targets() {
     let group = WarpgateTargetGroup {
         name: "Production".to_string(),
-        id: "grp-Production".to_string(),
         color: None,
     };
 

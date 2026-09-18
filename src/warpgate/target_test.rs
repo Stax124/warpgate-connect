@@ -47,14 +47,3 @@ fn deserializes_api_payload() {
     assert_eq!(targets[2].group, None);
     assert_eq!(targets[2].kind, "Http");
 }
-
-#[test]
-fn filterable_name_includes_description_when_present() {
-    let targets: Vec<WarpgateTarget> = serde_json::from_str(TARGETS_PAYLOAD).unwrap();
-
-    let with_description = WarpgateFilterableTarget::new(targets[0].clone());
-    assert_eq!(with_description.as_ref(), "prod-db (Primary database)");
-
-    let without_description = WarpgateFilterableTarget::new(targets[1].clone());
-    assert_eq!(without_description.as_ref(), "staging-web ()");
-}

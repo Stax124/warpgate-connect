@@ -1,2 +1,2 @@
 pub mod fetch;
-pub mod structs;
+pub mod target;

@@ -1,39 +1,28 @@
-use std::sync::{Arc, Mutex};
-
 use color_eyre::eyre::eyre;
 
 use crate::{
     config::{AppConfig, DEFAULT_WARPGATE_PORT},
     utils::{get_domain_from_warpgate_url, warpgate_ssh_username},
-    warpgate::{fetch::fetch_configured_targets, structs::WarpgateTarget},
+    warpgate::{fetch::fetch_configured_targets, target::WarpgateTarget},
 };
 
-pub async fn print_targets(config: Arc<Mutex<AppConfig>>) -> color_eyre::Result<()> {
-    let (warpgate_api_url, warpgate_username, warpgate_port) = {
-        let cfg = config.lock().unwrap();
-        (
-            cfg.warpgate_api_url.clone(),
-            cfg.warpgate_username.clone(),
-            cfg.warpgate_port,
-        )
-    };
-
+pub async fn print_targets(config: AppConfig) -> color_eyre::Result<()> {
     let config_path = AppConfig::get_config_file_path()?;
 
-    let warpgate_api_url = warpgate_api_url.ok_or_else(|| {
+    let warpgate_api_url = config.warpgate_api_url.as_deref().ok_or_else(|| {
         eyre!(
             "Warpgate API URL is not configured in {}",
             config_path.display()
         )
     })?;
-    let warpgate_username = warpgate_username.ok_or_else(|| {
+    let warpgate_username = config.warpgate_username.as_deref().ok_or_else(|| {
         eyre!(
             "Warpgate username is not configured in {}",
             config_path.display()
         )
     })?;
 
-    let host = get_domain_from_warpgate_url(&warpgate_api_url)
+    let host = get_domain_from_warpgate_url(warpgate_api_url)
         .ok_or_else(|| eyre!("Could not derive a hostname from {warpgate_api_url}"))?;
 
     let targets = fetch_configured_targets(&config).await?;
@@ -42,9 +31,9 @@ pub async fn print_targets(config: Arc<Mutex<AppConfig>>) -> color_eyre::Result<
         "{}",
         render_targets(
             &targets,
-            &warpgate_username,
+            warpgate_username,
             &host,
-            warpgate_port.unwrap_or(DEFAULT_WARPGATE_PORT),
+            config.warpgate_port.unwrap_or(DEFAULT_WARPGATE_PORT),
         )
     );
 

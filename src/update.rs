@@ -40,7 +40,7 @@ pub fn check_for_newer_version() -> Option<String> {
 /// Downloads and installs the latest release, returning the version now on disk.
 ///
 /// Blocks; call from `spawn_blocking`.
-pub fn perform_update() -> color_eyre::Result<self_update::Status> {
+fn perform_update() -> color_eyre::Result<self_update::Status> {
     let mut builder = updater();
     builder
         .show_download_progress(true)
@@ -48,4 +48,34 @@ pub fn perform_update() -> color_eyre::Result<self_update::Status> {
         .show_output(false);
 
     Ok(builder.build()?.update()?)
+}
+
+/// Runs the update and reports it on the plain terminal, after the TUI has been restored.
+pub async fn run_update() {
+    tracing::info!("User triggered update, starting update process");
+    println!("Starting update...");
+
+    let outcome = tokio::task::spawn_blocking(perform_update).await;
+
+    match outcome {
+        Ok(Ok(status)) if status.updated() => {
+            tracing::info!(version = %status.version(), "Successfully updated");
+            println!(
+                "Updated to version {}. Please restart the application.",
+                status.version()
+            );
+        }
+        Ok(Ok(_)) => {
+            tracing::info!("Already up to date");
+            println!("Already up to date.");
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "Update failed");
+            println!("Update failed: {e}");
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Update task failed");
+            println!("Update failed: {e}");
+        }
+    }
 }

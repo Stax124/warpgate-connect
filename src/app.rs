@@ -1,12 +1,15 @@
-use std::sync::{Arc, Mutex};
-
 use crate::{
-    app_data::ConnectionType,
-    config::DEFAULT_WARPGATE_PORT,
+    config::{AppConfig, DEFAULT_WARPGATE_PORT},
     event::{AppEvent, Event, EventHandler},
     theme,
-    utils::{MatchedTarget, filter_targets, rank_names},
-    warpgate::structs::WarpgateTargetGroup,
+    utils::{
+        MatchedTarget, filter_targets, first_line, get_domain_from_warpgate_url, rank_names,
+        trimmed_line, warpgate_ssh_username,
+    },
+    warpgate::{
+        fetch::fetch_configured_targets,
+        target::{WarpgateTarget, WarpgateTargetGroup},
+    },
 };
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
@@ -18,10 +21,45 @@ use ratatui_textarea::{Input, TextArea};
 use strum::{EnumIter, IntoEnumIterator};
 use tui_logger::TuiWidgetState;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display, strum::EnumIter)]
+#[strum(serialize_all = "UPPERCASE")]
+pub enum ConnectionType {
+    Ssh,
+    Sftp,
+}
+
+impl ConnectionType {
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Ssh => "interactive shell",
+            Self::Sftp => "file transfer",
+        }
+    }
+}
+
+/// What the TUI leaves behind for `main` to act on once the terminal is restored.
+#[derive(Debug)]
+pub enum Outcome {
+    Quit,
+    MissingConfiguration,
+    Connect(Connection),
+    Update,
+}
+
+/// Everything the `ssh`/`sftp` spawn needs, resolved while the config is still in hand.
+#[derive(Debug)]
+pub struct Connection {
+    pub target_name: String,
+    pub connection_type: ConnectionType,
+    pub ssh_username: String,
+    pub host: String,
+    pub port: u16,
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum AppScreen {
-    Main,
-    WarpgateSettings,
+    Targets,
+    Settings,
     Logs,
 }
 
@@ -101,10 +139,6 @@ impl AppInputs<'_> {
     }
 }
 
-fn host_from_config(warpgate_url: &str) -> String {
-    crate::utils::get_domain_from_warpgate_url(warpgate_url).unwrap_or_default()
-}
-
 /// Keeps the highlighted row inside its list, which `TableState` alone does not do — `select_next`
 /// and `select_last` can both leave the selection past the end.
 fn clamp_selection(state: &mut TableState, len: usize) {
@@ -129,8 +163,11 @@ pub struct App<'a> {
     pub table_targets_selection_state: TableState,
     pub table_connection_selection_state: TableState,
     pub events: EventHandler,
-    pub data: crate::app_data::Data,
-    pub config: Arc<Mutex<crate::config::AppConfig>>,
+    pub config: AppConfig,
+    pub warpgate_targets: color_eyre::Result<Vec<WarpgateTarget>>,
+    pub loading_targets: bool,
+    pub selected_target: Option<WarpgateTarget>,
+    pub update_available: Option<String>,
     pub group_filter: Option<WarpgateTargetGroup>,
     pub group_picker_rows: Vec<GroupRow>,
     /// Indices into `group_picker_rows`, in the order the picker's own query ranked them.
@@ -140,38 +177,31 @@ pub struct App<'a> {
     pub warpgate_selected_input: WarpgateSettingsScreenInput,
     pub filtered_targets: Vec<MatchedTarget>,
     pub total_ssh_targets: usize,
-    /// Cached so the header does not lock the config and re-parse the URL every frame.
+    /// Cached so the header does not re-parse the URL every frame.
     pub warpgate_host: String,
     pub skip_update: bool,
     pub logger_state: TuiWidgetState,
+    outcome: Outcome,
 }
 
 impl<'a> App<'a> {
-    pub fn new(
-        data: crate::app_data::Data,
-        config: Arc<Mutex<crate::config::AppConfig>>,
-        skip_update: bool,
-    ) -> Self {
-        let (warpgate_url, warpgate_token, warpgate_username, warpgate_port) = {
-            let cfg = config.lock().unwrap();
-            (
-                cfg.warpgate_api_url.clone().unwrap_or_default(),
-                cfg.warpgate_token.clone().unwrap_or_default(),
-                cfg.warpgate_username.clone().unwrap_or_default(),
-                cfg.warpgate_port
-                    .unwrap_or(DEFAULT_WARPGATE_PORT)
-                    .to_string(),
-            )
-        };
+    pub fn new(config: AppConfig, skip_update: bool) -> Self {
+        let warpgate_url = config.warpgate_api_url.clone().unwrap_or_default();
+        let warpgate_token = config.warpgate_token.clone().unwrap_or_default();
+        let warpgate_username = config.warpgate_username.clone().unwrap_or_default();
+        let warpgate_port = config
+            .warpgate_port
+            .unwrap_or(DEFAULT_WARPGATE_PORT)
+            .to_string();
 
         let screen = {
             if warpgate_url.is_empty() || warpgate_token.is_empty() || warpgate_username.is_empty()
             {
                 tracing::warn!("Missing warpgate configuration, opening settings screen");
-                AppScreen::WarpgateSettings
+                AppScreen::Settings
             } else {
                 tracing::debug!("Configuration loaded, starting on main screen");
-                AppScreen::Main
+                AppScreen::Targets
             }
         };
 
@@ -179,14 +209,16 @@ impl<'a> App<'a> {
         table_connection_selection_state.select_first();
 
         Self {
-            data,
-            config,
             running: true,
             screen,
             modal: None,
             table_targets_selection_state: TableState::default(),
             table_connection_selection_state,
             events: EventHandler::new(),
+            warpgate_targets: Ok(Vec::new()),
+            loading_targets: true,
+            selected_target: None,
+            update_available: None,
             group_filter: None,
             group_picker_rows: Vec::new(),
             group_picker_matches: Vec::new(),
@@ -200,9 +232,11 @@ impl<'a> App<'a> {
             warpgate_selected_input: WarpgateSettingsScreenInput::Url,
             filtered_targets: Vec::new(),
             total_ssh_targets: 0,
-            warpgate_host: host_from_config(&warpgate_url),
+            warpgate_host: get_domain_from_warpgate_url(&warpgate_url).unwrap_or_default(),
             skip_update,
             logger_state: TuiWidgetState::new(),
+            outcome: Outcome::Quit,
+            config,
         }
     }
 
@@ -220,7 +254,7 @@ impl<'a> App<'a> {
     }
 
     /// Run the application's main loop.
-    pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
+    pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<Outcome> {
         tracing::info!(screen = ?self.screen, "Application main loop started");
 
         self.queue_startup_events();
@@ -248,7 +282,7 @@ impl<'a> App<'a> {
                         match selected_target {
                             Some(target) => {
                                 tracing::info!(target = %target.name, "Target selected");
-                                self.data.selected_target.lock().unwrap().replace(target);
+                                self.selected_target = Some(target);
                                 self.table_connection_selection_state.select_first();
                                 self.modal = Some(Modal::Connect);
                             }
@@ -259,26 +293,34 @@ impl<'a> App<'a> {
                     }
                     AppEvent::ConnectionTypeSelected(connection_type) => {
                         tracing::info!(connection_type = ?connection_type, "Connection type selected");
-                        self.data
-                            .selected_connection_type
-                            .lock()
-                            .unwrap()
-                            .replace(connection_type);
-
+                        self.outcome = self.build_outcome(connection_type);
                         self.quit();
                     }
                     AppEvent::RefreshTargets => {
                         tracing::info!("Refreshing warpgate targets");
-                        let data = self.data.clone();
+                        self.loading_targets = true;
+
                         let config = self.config.clone();
                         let sender = self.events.sender.clone();
 
                         tokio::spawn(async move {
-                            crate::warpgate::fetch::fetch_warpgate_data(data, config).await;
-                            let _ = sender.send(Event::App(AppEvent::RecalculateTargets));
+                            let result = fetch_configured_targets(&config).await;
+                            let _ = sender.send(Event::App(AppEvent::TargetsFetched(result)));
                         });
                     }
-                    AppEvent::RecalculateTargets => {
+                    AppEvent::TargetsFetched(result) => {
+                        match &result {
+                            Ok(targets) => tracing::info!(
+                                count = targets.len(),
+                                "Successfully fetched warpgate targets"
+                            ),
+                            Err(e) => {
+                                tracing::error!(error = %e, "Failed to fetch warpgate targets")
+                            }
+                        }
+
+                        self.loading_targets = false;
+                        self.warpgate_targets = result;
                         self.recalculate_filtered_targets();
                     }
                     AppEvent::CheckForUpdate => {
@@ -293,17 +335,45 @@ impl<'a> App<'a> {
                     }
                     AppEvent::UpdateAvailable(version) => {
                         tracing::info!(version = %version, "Update available");
-                        *self.data.update_available.lock().unwrap() = Some(version);
+                        self.update_available = Some(version);
                     }
                     AppEvent::TriggerUpdate => {
                         tracing::info!("User triggered update");
-                        *self.data.trigger_update.lock().unwrap() = true;
+                        self.outcome = Outcome::Update;
                         self.quit();
                     }
                 },
             }
         }
-        Ok(())
+        Ok(self.outcome)
+    }
+
+    /// Resolves the highlighted target against the config into something `main` can spawn.
+    fn build_outcome(&self, connection_type: ConnectionType) -> Outcome {
+        let Some(target) = self.selected_target.as_ref() else {
+            tracing::warn!("Connection confirmed with no selected target");
+            return Outcome::Quit;
+        };
+
+        let (Some(warpgate_username), Some(host), Some(port)) = (
+            self.config.warpgate_username.as_deref(),
+            self.config
+                .warpgate_api_url
+                .as_deref()
+                .and_then(get_domain_from_warpgate_url),
+            self.config.warpgate_port,
+        ) else {
+            tracing::error!("Cannot connect: missing required configuration fields");
+            return Outcome::MissingConfiguration;
+        };
+
+        Outcome::Connect(Connection {
+            ssh_username: warpgate_ssh_username(warpgate_username, &target.name),
+            target_name: target.name.clone(),
+            connection_type,
+            host,
+            port,
+        })
     }
 
     /// Handles the key events and updates the state of [`App`].
@@ -331,15 +401,15 @@ impl<'a> App<'a> {
                 }
                 KeyCode::Char('n' | 'N') if self.modal.is_none() => {
                     self.screen = match self.screen {
-                        AppScreen::Main => AppScreen::WarpgateSettings,
-                        AppScreen::WarpgateSettings => AppScreen::Logs,
-                        AppScreen::Logs => AppScreen::Main,
+                        AppScreen::Targets => AppScreen::Settings,
+                        AppScreen::Settings => AppScreen::Logs,
+                        AppScreen::Logs => AppScreen::Targets,
                     };
                     tracing::debug!(screen = ?self.screen, "Switched screen");
                     return Ok(());
                 }
                 KeyCode::Char('u' | 'U') => {
-                    if self.data.update_available.lock().unwrap().is_some() {
+                    if self.update_available.is_some() {
                         self.events.send(AppEvent::TriggerUpdate);
                     }
                     return Ok(());
@@ -353,8 +423,8 @@ impl<'a> App<'a> {
         }
 
         match self.screen {
-            AppScreen::Main => self.handle_key_main(key_event)?,
-            AppScreen::WarpgateSettings => self.handle_key_warpgate_settings(key_event)?,
+            AppScreen::Targets => self.handle_key_targets(key_event)?,
+            AppScreen::Settings => self.handle_key_settings(key_event)?,
             AppScreen::Logs => {}
         }
         Ok(())
@@ -374,7 +444,7 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    pub fn handle_key_main(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
+    pub fn handle_key_targets(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
         match key_event.code {
             KeyCode::Char('g' | 'G') if key_event.modifiers.contains(KeyModifiers::CONTROL) => {
                 self.open_group_picker()
@@ -395,24 +465,20 @@ impl<'a> App<'a> {
 
     fn open_group_picker(&mut self) {
         let mut counted_groups: Vec<(WarpgateTargetGroup, usize)> = Vec::new();
-        let total_ssh_targets;
-        {
-            let warpgate_targets_guard = self.data.warpgate_targets.lock().unwrap();
-            let targets = warpgate_targets_guard.as_deref().unwrap_or(&[]);
-            total_ssh_targets = targets.iter().filter(|t| t.is_ssh()).count();
+        let targets = self.warpgate_targets.as_deref().unwrap_or(&[]);
+        let total_ssh_targets = targets.iter().filter(|t| t.is_ssh()).count();
 
-            for group in targets
-                .iter()
-                .filter(|t| t.is_ssh())
-                .filter_map(|t| t.group.as_ref())
+        for group in targets
+            .iter()
+            .filter(|t| t.is_ssh())
+            .filter_map(|t| t.group.as_ref())
+        {
+            match counted_groups
+                .iter_mut()
+                .find(|(g, _)| g.name == group.name)
             {
-                match counted_groups
-                    .iter_mut()
-                    .find(|(g, _)| g.name == group.name)
-                {
-                    Some((_, count)) => *count += 1,
-                    None => counted_groups.push((group.clone(), 1)),
-                }
+                Some((_, count)) => *count += 1,
+                None => counted_groups.push((group.clone(), 1)),
             }
         }
         counted_groups.sort_by(|a, b| a.0.name.cmp(&b.0.name));
@@ -453,13 +519,7 @@ impl<'a> App<'a> {
     }
 
     fn recalculate_group_picker_matches(&mut self) {
-        let query = self
-            .ui_inputs
-            .group_picker_input
-            .lines()
-            .first()
-            .cloned()
-            .unwrap_or_default();
+        let query = first_line(&self.ui_inputs.group_picker_input).to_string();
 
         self.group_picker_matches = rank_names(
             self.group_picker_rows.iter().map(|row| {
@@ -505,47 +565,30 @@ impl<'a> App<'a> {
         self.recalculate_filtered_targets();
     }
 
-    pub fn get_string_from_textarea(text_area: &TextArea) -> Option<String> {
-        text_area.lines().first().cloned().and_then(|v| {
-            let trimmed = v.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        })
-    }
-
-    pub fn handle_key_warpgate_settings(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
+    pub fn handle_key_settings(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
         match key_event.code {
             KeyCode::Enter => {
-                let warpgate_url =
-                    Self::get_string_from_textarea(&self.ui_inputs.warpgate_url_input);
-                let warpgate_token =
-                    Self::get_string_from_textarea(&self.ui_inputs.warpgate_token_input);
-                let warpgate_username =
-                    Self::get_string_from_textarea(&self.ui_inputs.warpgate_username_input);
-                let warpgate_port =
-                    Self::get_string_from_textarea(&self.ui_inputs.warpgate_port_input)
-                        .and_then(|s| s.parse::<u16>().ok());
+                let warpgate_url = trimmed_line(&self.ui_inputs.warpgate_url_input);
 
-                self.warpgate_host = host_from_config(warpgate_url.as_deref().unwrap_or_default());
+                self.warpgate_host = warpgate_url
+                    .as_deref()
+                    .and_then(get_domain_from_warpgate_url)
+                    .unwrap_or_default();
 
-                {
-                    let mut config = self.config.lock().unwrap();
-                    config.warpgate_api_url = warpgate_url;
-                    config.warpgate_token = warpgate_token;
-                    config.warpgate_username = warpgate_username;
-                    config.warpgate_port = warpgate_port;
-                    config.save()?;
-                }
+                self.config.warpgate_api_url = warpgate_url;
+                self.config.warpgate_token = trimmed_line(&self.ui_inputs.warpgate_token_input);
+                self.config.warpgate_username =
+                    trimmed_line(&self.ui_inputs.warpgate_username_input);
+                self.config.warpgate_port = trimmed_line(&self.ui_inputs.warpgate_port_input)
+                    .and_then(|port| port.parse::<u16>().ok());
+                self.config.save()?;
 
                 tracing::info!("Warpgate settings saved");
-                self.screen = AppScreen::Main;
+                self.screen = AppScreen::Targets;
                 self.events.send(AppEvent::RefreshTargets);
             }
 
-            KeyCode::Esc => self.screen = AppScreen::Main,
+            KeyCode::Esc => self.screen = AppScreen::Targets,
             KeyCode::Down | KeyCode::Tab => self.cycle_input(true),
             KeyCode::Up | KeyCode::BackTab => self.cycle_input(false),
             _ => self.handle_input(key_event),
@@ -601,10 +644,9 @@ impl<'a> App<'a> {
 
     /// Colours the URL and token inputs by whether their current contents look usable.
     pub fn warpgate_update_input_validation(&mut self) {
-        let url_is_valid = Self::get_string_from_textarea(&self.ui_inputs.warpgate_url_input)
+        let url_is_valid = trimmed_line(&self.ui_inputs.warpgate_url_input)
             .is_some_and(|url| url.starts_with("http://") || url.starts_with("https://"));
-        let token_is_valid =
-            Self::get_string_from_textarea(&self.ui_inputs.warpgate_token_input).is_some();
+        let token_is_valid = trimmed_line(&self.ui_inputs.warpgate_token_input).is_some();
 
         for (input, is_valid) in [
             (WarpgateSettingsScreenInput::Url, url_is_valid),
@@ -627,8 +669,8 @@ impl<'a> App<'a> {
 
         let selected = self.warpgate_selected_input;
         match self.screen {
-            AppScreen::Main => Some(&mut self.ui_inputs.search_input),
-            AppScreen::WarpgateSettings => Some(self.get_warpgate_input_by_enum(selected)),
+            AppScreen::Targets => Some(&mut self.ui_inputs.search_input),
+            AppScreen::Settings => Some(self.get_warpgate_input_by_enum(selected)),
             AppScreen::Logs => None,
         }
     }
@@ -673,31 +715,18 @@ impl<'a> App<'a> {
         }
 
         match self.screen {
-            AppScreen::Main => self.recalculate_filtered_targets(),
-            AppScreen::WarpgateSettings => self.warpgate_update_input_validation(),
+            AppScreen::Targets => self.recalculate_filtered_targets(),
+            AppScreen::Settings => self.warpgate_update_input_validation(),
             AppScreen::Logs => {}
         }
     }
 
     pub fn recalculate_filtered_targets(&mut self) {
-        let query = self
-            .ui_inputs
-            .search_input
-            .lines()
-            .first()
-            .cloned()
-            .unwrap_or_default();
+        let query = first_line(&self.ui_inputs.search_input).to_string();
+        let targets = self.warpgate_targets.as_deref().unwrap_or(&[]);
 
-        let (total_ssh_targets, filtered_targets) = {
-            let warpgate_targets_guard = self.data.warpgate_targets.lock().unwrap();
-            let targets = warpgate_targets_guard.as_deref().unwrap_or(&[]);
-            (
-                targets.iter().filter(|t| t.is_ssh()).count(),
-                filter_targets(targets, self.group_filter.as_ref(), &query),
-            )
-        };
-        self.total_ssh_targets = total_ssh_targets;
-        self.filtered_targets = filtered_targets;
+        self.total_ssh_targets = targets.iter().filter(|t| t.is_ssh()).count();
+        self.filtered_targets = filter_targets(targets, self.group_filter.as_ref(), &query);
 
         clamp_selection(
             &mut self.table_targets_selection_state,
@@ -720,7 +749,7 @@ impl<'a> App<'a> {
                 &mut self.table_group_picker_state,
                 Some(self.group_picker_matches.len()),
             ),
-            (None, AppScreen::Main) => (
+            (None, AppScreen::Targets) => (
                 &mut self.table_targets_selection_state,
                 Some(self.filtered_targets.len()),
             ),

@@ -1,16 +1,20 @@
 use nucleo_matcher::Utf32Str;
 use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
-use ratatui::style::Color;
+use ratatui_textarea::TextArea;
 
-use crate::warpgate::structs::{WarpgateFilterableTarget, WarpgateTarget, WarpgateTargetGroup};
+use crate::warpgate::target::{WarpgateTarget, WarpgateTargetGroup};
 
-pub fn get_color_from_group_color(group_color: Option<&str>) -> Color {
-    match group_color {
-        Some("Primary") => Color::Blue,
-        Some("Danger") => Color::Red,
-        Some("Warning") => Color::Yellow,
-        Some("Success") => Color::Green,
-        _ => Color::Gray,
+pub fn first_line<'a>(text_area: &'a TextArea<'_>) -> &'a str {
+    text_area.lines().first().map_or("", |line| line.as_str())
+}
+
+/// The trimmed contents of a single-line input, or `None` where the user left it blank.
+pub fn trimmed_line(text_area: &TextArea) -> Option<String> {
+    let trimmed = first_line(text_area).trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
     }
 }
 
@@ -27,28 +31,36 @@ pub fn filter_targets(
     group: Option<&WarpgateTargetGroup>,
     query: &str,
 ) -> Vec<MatchedTarget> {
-    let mut matcher = nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT.match_paths());
+    let candidates: Vec<(&WarpgateTarget, String)> = targets
+        .iter()
+        .filter(|t| t.is_ssh())
+        .filter(|t| match group {
+            Some(group) => t.group.as_ref().is_some_and(|g| g.name == group.name),
+            None => true,
+        })
+        .map(|target| {
+            let haystack = format!(
+                "{} ({})",
+                target.name,
+                target.description.as_deref().unwrap_or("")
+            );
+            (target, haystack)
+        })
+        .collect();
 
-    let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
-    let matches = pattern.match_list(
-        targets
-            .iter()
-            .filter(|t| t.is_ssh())
-            .filter(|t| match group {
-                Some(group) => t.group.as_ref().is_some_and(|g| g.name == group.name),
-                None => true,
-            })
-            .cloned()
-            .map(WarpgateFilterableTarget::new),
-        &mut matcher,
+    let ranked = rank_names(
+        candidates.iter().map(|(_, haystack)| haystack.as_str()),
+        query,
     );
 
+    let mut matcher = nucleo_matcher::Matcher::new(nucleo_matcher::Config::DEFAULT.match_paths());
+    let pattern = Pattern::parse(query, CaseMatching::Ignore, Normalization::Smart);
     let mut name_buffer = Vec::new();
 
-    matches
+    ranked
         .into_iter()
-        .map(|m| {
-            let target = m.0.warpgate_target;
+        .map(|index| {
+            let target = candidates[index].0;
 
             // Ranking runs over "name (description)" so that a description search works, which
             // leaves its positions unusable for the name column; these are matched a second time.
@@ -63,7 +75,7 @@ pub fn filter_targets(
 
             MatchedTarget {
                 name_indices,
-                target,
+                target: target.clone(),
             }
         })
         .collect()
@@ -103,9 +115,12 @@ pub fn warpgate_ssh_username(warpgate_username: &str, target_name: &str) -> Stri
 }
 
 pub fn get_domain_from_warpgate_url(url: &str) -> Option<String> {
-    let re = regex_lite::Regex::new(r"^https?://([^:/]+)").unwrap();
-    re.captures(url)
-        .and_then(|caps| caps.get(1).map(|m| m.as_str().to_string()))
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
+
+    let host = rest.split([':', '/']).next().unwrap_or_default();
+    (!host.is_empty()).then(|| host.to_string())
 }
 
 #[cfg(test)]

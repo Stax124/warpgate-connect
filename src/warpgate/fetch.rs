@@ -1,50 +1,28 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::time::Duration;
 
 use color_eyre::eyre::{Context, eyre};
 use reqwest::header::{HeaderMap, HeaderValue};
 
-use crate::app_data::Data;
+use crate::config::AppConfig;
+use crate::warpgate::target::WarpgateTarget;
 
-/// Fetches warpgate targets from the API and stores the result, or the reason it failed, in
-/// `data`.
-pub async fn fetch_warpgate_data(data: Data, config: Arc<Mutex<crate::config::AppConfig>>) {
-    *data.loading_targets.lock().unwrap() = true;
-
-    let result = fetch_configured_targets(&config).await;
-    match &result {
-        Ok(targets) => tracing::info!(
-            count = targets.len(),
-            "Successfully fetched warpgate targets"
-        ),
-        Err(e) => tracing::error!(error = %e, "Failed to fetch warpgate targets"),
-    }
-
-    *data.warpgate_targets.lock().unwrap() = result;
-    *data.loading_targets.lock().unwrap() = false;
-}
-
-pub(crate) async fn fetch_configured_targets(
-    config: &Arc<Mutex<crate::config::AppConfig>>,
-) -> color_eyre::Result<Vec<crate::warpgate::structs::WarpgateTarget>> {
-    let (warpgate_url, warpgate_token) = {
-        let cfg = config.lock().unwrap();
-        (cfg.warpgate_api_url.clone(), cfg.warpgate_token.clone())
-    };
-
-    let url = warpgate_url.ok_or_else(|| eyre!("Warpgate API URL is not configured"))?;
-    let token = warpgate_token.ok_or_else(|| eyre!("Warpgate token is not configured"))?;
+pub async fn fetch_configured_targets(
+    config: &AppConfig,
+) -> color_eyre::Result<Vec<WarpgateTarget>> {
+    let url = config
+        .warpgate_api_url
+        .as_deref()
+        .ok_or_else(|| eyre!("Warpgate API URL is not configured"))?;
+    let token = config
+        .warpgate_token
+        .as_deref()
+        .ok_or_else(|| eyre!("Warpgate token is not configured"))?;
 
     tracing::info!(url = %url, "Fetching warpgate targets");
-    fetch_targets(&url, &token).await
+    fetch_targets(url, token).await
 }
 
-async fn fetch_targets(
-    url: &str,
-    token: &str,
-) -> color_eyre::Result<Vec<crate::warpgate::structs::WarpgateTarget>> {
+async fn fetch_targets(url: &str, token: &str) -> color_eyre::Result<Vec<WarpgateTarget>> {
     // Build the message here rather than forwarding the parse error, so nothing derived from the
     // token can reach a log line.
     let value: HeaderValue = token

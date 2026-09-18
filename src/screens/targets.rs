@@ -13,13 +13,13 @@ use crate::{
     app::{App, AppScreen},
     screens::common::{
         Status, current_status, draw_footer, draw_header, draw_prompt_row, draw_rule,
-        highlighted_table, key_hints, right_width,
+        highlighted_table, key_hints, split_row,
     },
     theme,
-    utils::get_color_from_group_color,
+    utils::first_line,
 };
 
-pub fn draw_main_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
+pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
     let [
         header_area,
         header_rule_area,
@@ -42,7 +42,7 @@ pub fn draw_main_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
     let status = current_status(app);
 
     draw_header(
-        AppScreen::Main,
+        AppScreen::Targets,
         &app.warpgate_host,
         status,
         header_area,
@@ -59,7 +59,6 @@ pub fn draw_main_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
     draw_rule(body_rule_area, buf);
 
     let has_highlighted_target = app.table_targets_selection_state.selected().is_some();
-    let update_version = app.data.update_available.lock().unwrap().clone();
 
     draw_footer(
         &[
@@ -70,7 +69,7 @@ pub fn draw_main_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
             ("^N", "settings", true),
         ],
         status,
-        update_version.as_deref(),
+        app.update_available.as_deref(),
         footer_area,
         buf,
     );
@@ -79,7 +78,7 @@ pub fn draw_main_screen(app: &mut App, area: Rect, buf: &mut Buffer) {
 fn draw_prompt(app: &App, area: Rect, buf: &mut Buffer) {
     let group_name = app.group_filter.as_ref().map_or("all", |g| g.name.as_str());
     let group_color =
-        get_color_from_group_color(app.group_filter.as_ref().and_then(|g| g.color.as_deref()));
+        theme::group_color(app.group_filter.as_ref().and_then(|g| g.color.as_deref()));
 
     let counter_color = if app.filtered_targets.is_empty() {
         theme::ACCENT
@@ -102,11 +101,7 @@ fn draw_prompt(app: &App, area: Rect, buf: &mut Buffer) {
         ),
     ]);
 
-    let [prompt_area, right_area] = Layout::horizontal([
-        Constraint::Fill(1),
-        Constraint::Length(right_width(&right, area)),
-    ])
-    .areas(area);
+    let (prompt_area, right_area) = split_row(&right, area);
 
     draw_prompt_row(&app.ui_inputs.search_input, prompt_area, buf);
     Paragraph::new(right).render(right_area, buf);
@@ -115,12 +110,8 @@ fn draw_prompt(app: &App, area: Rect, buf: &mut Buffer) {
 /// Stands in for the table when there is nothing to list: a failed fetch, a fetch still running,
 /// or a search that matched nothing.
 fn draw_empty_body(app: &App, status: Status, area: Rect, buf: &mut Buffer) {
-    let fetch_error = {
-        // The Report is not Clone, so it is formatted from behind the guard. `{e:?}` would drag
-        // the whole backtrace into the frame.
-        let targets = app.data.warpgate_targets.lock().unwrap();
-        targets.as_ref().err().map(|e| format!("{e}"))
-    };
+    // `{e:?}` would drag the whole backtrace into the frame.
+    let fetch_error = app.warpgate_targets.as_ref().err().map(|e| format!("{e}"));
 
     let lines: Vec<Line> = if let Some(error) = fetch_error {
         vec![
@@ -141,13 +132,7 @@ fn draw_empty_body(app: &App, status: Status, area: Rect, buf: &mut Buffer) {
             Span::styled(" loading targets…", Style::default().fg(theme::MUTED)),
         ])]
     } else {
-        let query = app
-            .ui_inputs
-            .search_input
-            .lines()
-            .first()
-            .cloned()
-            .unwrap_or_default();
+        let query = first_line(&app.ui_inputs.search_input);
 
         let mut headline = if query.is_empty() {
             vec![Span::styled(
@@ -158,7 +143,7 @@ fn draw_empty_body(app: &App, status: Status, area: Rect, buf: &mut Buffer) {
             vec![
                 Span::styled("no targets match ", Style::default().fg(theme::DIM_TEXT)),
                 Span::styled(
-                    query,
+                    query.to_string(),
                     Style::default()
                         .fg(theme::TEXT)
                         .add_modifier(Modifier::BOLD),
@@ -174,7 +159,7 @@ fn draw_empty_body(app: &App, status: Status, area: Rect, buf: &mut Buffer) {
             headline.push(Span::styled(
                 group.name.clone(),
                 Style::default()
-                    .fg(get_color_from_group_color(group.color.as_deref()))
+                    .fg(theme::group_color(group.color.as_deref()))
                     .add_modifier(Modifier::BOLD),
             ));
         }
@@ -256,7 +241,7 @@ fn highlighted_name(name: &str, name_indices: &[u32]) -> Line<'static> {
     Line::from(spans)
 }
 
-pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
+fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
     const HEADERS: [&str; 3] = ["GROUP", "NAME", "DESCRIPTION"];
 
     let needs_scrollbar = app.filtered_targets.len() > area.height.saturating_sub(1) as usize;
@@ -277,7 +262,7 @@ pub fn draw_table(app: &mut App, area: Rect, buf: &mut Buffer) {
         .map(|matched| {
             let target = &matched.target;
             let group_color =
-                get_color_from_group_color(target.group.as_ref().and_then(|g| g.color.as_deref()));
+                theme::group_color(target.group.as_ref().and_then(|g| g.color.as_deref()));
             Row::new(vec![
                 Cell::from(target.group.as_ref().map_or("", |g| g.name.as_str())).style(
                     Style::default()

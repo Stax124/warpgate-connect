@@ -1,7 +1,4 @@
-use std::sync::{Arc, Mutex};
-
 use color_eyre::eyre::{Context, eyre};
-use config::{File, FileFormat};
 use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_WARPGATE_PORT: u16 = 2222;
@@ -23,28 +20,27 @@ impl AppConfig {
         Ok(project_dirs.config_dir().join("config.toml"))
     }
 
-    pub fn load() -> color_eyre::Result<Arc<Mutex<Self>>> {
+    pub fn load() -> color_eyre::Result<Self> {
         let config_path = Self::get_config_file_path()?;
         tracing::info!(path = %config_path.display(), "Loading configuration");
 
-        let cfg = config::Config::builder()
-            .set_default::<&str, Option<String>>("warpgate_api_url", None)?
-            .set_default::<&str, Option<String>>("warpgate_token", None)?
-            .set_default::<&str, Option<String>>("warpgate_username", None)?
-            .set_default::<&str, Option<u16>>("warpgate_port", DEFAULT_WARPGATE_PORT.into())?
-            .add_source(
-                File::from(config_path.clone())
-                    .required(false)
-                    .format(FileFormat::Toml),
-            )
-            .build()?;
+        let text = match std::fs::read_to_string(&config_path) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => {
+                return Err(e).with_context(|| format!("Failed to read {}", config_path.display()));
+            }
+        };
 
-        let app_config = cfg.try_deserialize::<AppConfig>().with_context(|| {
+        let mut app_config: AppConfig = toml::from_str(&text).with_context(|| {
             format!(
-                "Failed to deserialize configuration at {}. Please check your config file for errors.",
+                "Failed to parse the configuration at {}. Please check your config file for errors.",
                 config_path.display()
             )
         })?;
+        app_config
+            .warpgate_port
+            .get_or_insert(DEFAULT_WARPGATE_PORT);
 
         if !app_config.are_all_required_fields_set() {
             tracing::warn!(
@@ -55,7 +51,7 @@ impl AppConfig {
             tracing::info!("Configuration loaded successfully");
         }
 
-        Ok(Arc::new(Mutex::new(app_config)))
+        Ok(app_config)
     }
 
     pub fn save(&self) -> color_eyre::Result<()> {

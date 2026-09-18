@@ -1,7 +1,5 @@
 use super::*;
-use crate::app_data::Data;
 use crate::config::AppConfig;
-use crate::warpgate::structs::WarpgateTarget;
 
 fn target(name: &str) -> WarpgateTarget {
     WarpgateTarget {
@@ -16,7 +14,6 @@ fn grouped_target(name: &str, group: &str) -> WarpgateTarget {
     WarpgateTarget {
         group: Some(WarpgateTargetGroup {
             name: group.to_string(),
-            id: format!("grp-{group}"),
             color: None,
         }),
         ..target(name)
@@ -25,11 +22,7 @@ fn grouped_target(name: &str, group: &str) -> WarpgateTarget {
 
 /// `AppConfig::default()` keeps this away from the real config file on disk.
 fn test_app() -> App<'static> {
-    App::new(
-        Data::new(),
-        Arc::new(Mutex::new(AppConfig::default())),
-        true,
-    )
+    App::new(AppConfig::default(), true)
 }
 
 fn set_search_query(app: &mut App, query: &str) {
@@ -43,8 +36,7 @@ fn set_search_query(app: &mut App, query: &str) {
 #[tokio::test]
 async fn narrowing_the_list_keeps_the_highlight_in_range() {
     let mut app = test_app();
-    *app.data.warpgate_targets.lock().unwrap() =
-        Ok(vec![target("alpha"), target("beta"), target("gamma")]);
+    app.warpgate_targets = Ok(vec![target("alpha"), target("beta"), target("gamma")]);
 
     app.recalculate_filtered_targets();
     app.table_targets_selection_state.select(Some(2));
@@ -66,7 +58,7 @@ async fn narrowing_the_list_keeps_the_highlight_in_range() {
 #[tokio::test]
 async fn an_empty_result_leaves_nothing_highlighted() {
     let mut app = test_app();
-    *app.data.warpgate_targets.lock().unwrap() = Ok(vec![target("alpha")]);
+    app.warpgate_targets = Ok(vec![target("alpha")]);
 
     app.recalculate_filtered_targets();
     assert_eq!(app.table_targets_selection_state.selected(), Some(0));
@@ -83,7 +75,7 @@ async fn the_first_target_is_highlighted_once_a_fetch_lands() {
     let mut app = test_app();
     assert_eq!(app.table_targets_selection_state.selected(), None);
 
-    *app.data.warpgate_targets.lock().unwrap() = Ok(vec![target("alpha"), target("beta")]);
+    app.warpgate_targets = Ok(vec![target("alpha"), target("beta")]);
     app.recalculate_filtered_targets();
 
     assert_eq!(app.table_targets_selection_state.selected(), Some(0));
@@ -99,7 +91,7 @@ fn press(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
 #[tokio::test]
 async fn uppercase_letters_reach_the_focused_settings_input() {
     let mut app = test_app();
-    app.screen = AppScreen::WarpgateSettings;
+    app.screen = AppScreen::Settings;
     app.warpgate_selected_input = WarpgateSettingsScreenInput::Token;
 
     for character in ['Q', 'R', 'N', 'U', 'G'] {
@@ -110,13 +102,13 @@ async fn uppercase_letters_reach_the_focused_settings_input() {
         app.ui_inputs.warpgate_token_input.lines().first().unwrap(),
         "QRNUG"
     );
-    assert_eq!(app.screen, AppScreen::WarpgateSettings);
+    assert_eq!(app.screen, AppScreen::Settings);
 }
 
 #[tokio::test]
 async fn uppercase_letters_reach_the_search_box() {
     let mut app = test_app();
-    app.screen = AppScreen::Main;
+    app.screen = AppScreen::Targets;
 
     press(&mut app, KeyCode::Char('G'), KeyModifiers::SHIFT);
 
@@ -127,7 +119,7 @@ async fn uppercase_letters_reach_the_search_box() {
 #[tokio::test]
 async fn control_chords_are_shortcuts_rather_than_text() {
     let mut app = test_app();
-    app.screen = AppScreen::WarpgateSettings;
+    app.screen = AppScreen::Settings;
     app.warpgate_selected_input = WarpgateSettingsScreenInput::Token;
 
     press(&mut app, KeyCode::Char('q'), KeyModifiers::CONTROL);
@@ -149,16 +141,16 @@ async fn control_chords_are_shortcuts_rather_than_text() {
 #[tokio::test]
 async fn control_n_cycles_screens() {
     let mut app = test_app();
-    app.screen = AppScreen::Main;
+    app.screen = AppScreen::Targets;
 
     press(&mut app, KeyCode::Char('n'), KeyModifiers::CONTROL);
-    assert_eq!(app.screen, AppScreen::WarpgateSettings);
+    assert_eq!(app.screen, AppScreen::Settings);
 
     press(&mut app, KeyCode::Char('n'), KeyModifiers::CONTROL);
     assert_eq!(app.screen, AppScreen::Logs);
 
     press(&mut app, KeyCode::Char('n'), KeyModifiers::CONTROL);
-    assert_eq!(app.screen, AppScreen::Main);
+    assert_eq!(app.screen, AppScreen::Targets);
 }
 
 /// The settings inputs are walked in the order they are drawn, not in an order written out a
@@ -166,7 +158,7 @@ async fn control_n_cycles_screens() {
 #[tokio::test]
 async fn tab_walks_the_settings_inputs_in_display_order() {
     let mut app = test_app();
-    app.screen = AppScreen::WarpgateSettings;
+    app.screen = AppScreen::Settings;
 
     let mut visited = vec![app.warpgate_selected_input];
     for _ in 0..4 {
@@ -197,7 +189,7 @@ async fn tab_walks_the_settings_inputs_in_display_order() {
 #[tokio::test]
 async fn an_open_modal_takes_the_keys_from_the_screen_beneath_it() {
     let mut app = test_app();
-    app.screen = AppScreen::Main;
+    app.screen = AppScreen::Targets;
     app.modal = Some(Modal::Connect);
 
     press(&mut app, KeyCode::Char('x'), KeyModifiers::NONE);
@@ -214,8 +206,8 @@ async fn an_open_modal_takes_the_keys_from_the_screen_beneath_it() {
 #[tokio::test]
 async fn esc_clears_the_search_on_the_main_screen() {
     let mut app = test_app();
-    app.screen = AppScreen::Main;
-    *app.data.warpgate_targets.lock().unwrap() = Ok(vec![target("alpha"), target("beta")]);
+    app.screen = AppScreen::Targets;
+    app.warpgate_targets = Ok(vec![target("alpha"), target("beta")]);
 
     set_search_query(&mut app, "alpha");
     app.recalculate_filtered_targets();
@@ -255,8 +247,8 @@ async fn the_connect_modal_decodes_the_highlighted_row() {
 #[tokio::test]
 async fn the_group_picker_applies_a_filter_and_clamps_the_highlight() {
     let mut app = test_app();
-    app.screen = AppScreen::Main;
-    *app.data.warpgate_targets.lock().unwrap() = Ok(vec![
+    app.screen = AppScreen::Targets;
+    app.warpgate_targets = Ok(vec![
         grouped_target("prod-db", "production"),
         grouped_target("prod-web", "production"),
         grouped_target("staging-db", "staging"),
@@ -301,8 +293,8 @@ async fn the_group_picker_applies_a_filter_and_clamps_the_highlight() {
 #[tokio::test]
 async fn the_group_picker_can_go_back_to_every_group() {
     let mut app = test_app();
-    app.screen = AppScreen::Main;
-    *app.data.warpgate_targets.lock().unwrap() = Ok(vec![
+    app.screen = AppScreen::Targets;
+    app.warpgate_targets = Ok(vec![
         grouped_target("prod-db", "production"),
         target("orphan"),
     ]);
@@ -333,11 +325,7 @@ async fn the_group_picker_can_go_back_to_every_group() {
 async fn f1_toggles_the_help_overlay_from_anywhere() {
     let mut app = test_app();
 
-    for screen in [
-        AppScreen::Main,
-        AppScreen::WarpgateSettings,
-        AppScreen::Logs,
-    ] {
+    for screen in [AppScreen::Targets, AppScreen::Settings, AppScreen::Logs] {
         app.screen = screen;
 
         press(&mut app, KeyCode::F(1), KeyModifiers::NONE);
@@ -359,11 +347,11 @@ async fn f1_toggles_the_help_overlay_from_anywhere() {
 #[tokio::test]
 async fn esc_leaves_the_settings_screen() {
     let mut app = test_app();
-    app.screen = AppScreen::WarpgateSettings;
+    app.screen = AppScreen::Settings;
 
     press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
 
-    assert_eq!(app.screen, AppScreen::Main);
+    assert_eq!(app.screen, AppScreen::Targets);
 }
 
 /// Guards the regression where starting on the settings screen queued no fetch, so reaching the
@@ -373,7 +361,7 @@ async fn an_unconfigured_start_still_asks_for_targets() {
     let mut app = test_app();
     assert_eq!(
         app.screen,
-        AppScreen::WarpgateSettings,
+        AppScreen::Settings,
         "an empty config should open the settings screen"
     );
 
@@ -392,9 +380,8 @@ async fn an_unconfigured_start_still_asks_for_targets() {
 #[tokio::test]
 async fn navigation_keys_keep_the_highlight_inside_the_list() {
     let mut app = test_app();
-    app.screen = AppScreen::Main;
-    *app.data.warpgate_targets.lock().unwrap() =
-        Ok(vec![target("alpha"), target("beta"), target("gamma")]);
+    app.screen = AppScreen::Targets;
+    app.warpgate_targets = Ok(vec![target("alpha"), target("beta"), target("gamma")]);
     app.recalculate_filtered_targets();
 
     press(&mut app, KeyCode::End, KeyModifiers::NONE);
@@ -417,4 +404,54 @@ async fn navigation_keys_keep_the_highlight_inside_the_list() {
         None,
         "an empty list has nothing to highlight"
     );
+}
+
+fn configured_app() -> App<'static> {
+    App::new(
+        AppConfig {
+            warpgate_api_url: Some(
+                "https://warpgate.example.com:8888/@warpgate/api/targets".into(),
+            ),
+            warpgate_token: Some("secret-token".into()),
+            warpgate_username: Some("admin".into()),
+            warpgate_port: Some(2222),
+        },
+        true,
+    )
+}
+
+/// The `Outcome` is the only thing `main` gets to spawn `ssh` from, so it has to carry a complete
+/// and token-free set of arguments.
+#[tokio::test]
+async fn confirming_a_connection_resolves_the_ssh_arguments() {
+    let mut app = configured_app();
+    app.selected_target = Some(target("prod-db"));
+
+    let Outcome::Connect(connection) = app.build_outcome(ConnectionType::Sftp) else {
+        panic!("a configured app should resolve a connection");
+    };
+
+    assert_eq!(connection.ssh_username, "admin:prod-db");
+    assert_eq!(connection.host, "warpgate.example.com");
+    assert_eq!(connection.port, 2222);
+    assert_eq!(connection.connection_type, ConnectionType::Sftp);
+
+    let rendered = format!("{connection:?}");
+    assert!(
+        !rendered.contains("secret-token"),
+        "the token must not travel with the connection: {rendered}"
+    );
+}
+
+/// Reaching the connect modal with an incomplete config quits with a message rather than spawning
+/// `ssh` against a half-built command line.
+#[tokio::test]
+async fn an_incomplete_config_cannot_resolve_a_connection() {
+    let mut app = test_app();
+    app.selected_target = Some(target("prod-db"));
+
+    assert!(matches!(
+        app.build_outcome(ConnectionType::Ssh),
+        Outcome::MissingConfiguration
+    ));
 }

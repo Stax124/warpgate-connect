@@ -44,38 +44,33 @@ impl Status {
 }
 
 pub fn current_status(app: &App) -> Status {
-    let has_cached_targets = {
-        let targets = app.data.warpgate_targets.lock().unwrap();
-        match targets.as_ref() {
-            Err(_) => return Status::Error,
-            Ok(targets) => !targets.is_empty(),
-        }
+    let has_cached_targets = match app.warpgate_targets.as_ref() {
+        Err(_) => return Status::Error,
+        Ok(targets) => !targets.is_empty(),
     };
 
-    match (
-        *app.data.loading_targets.lock().unwrap(),
-        has_cached_targets,
-    ) {
+    match (app.loading_targets, has_cached_targets) {
         (true, true) => Status::Refreshing,
         (true, false) => Status::Loading,
         (false, _) => Status::Ready,
     }
 }
 
-pub fn right_width(right: &Line, area: Rect) -> u16 {
-    u16::try_from(right.width())
+/// Splits `area` so that `right` gets exactly the width it needs and the rest goes to the left
+/// half, which keeps the two from overwriting each other in a narrow terminal.
+pub fn split_row(right: &Line, area: Rect) -> (Rect, Rect) {
+    let width = u16::try_from(right.width())
         .unwrap_or(u16::MAX)
-        .min(area.width)
+        .min(area.width);
+
+    let [left_area, right_area] =
+        Layout::horizontal([Constraint::Fill(1), Constraint::Length(width)]).areas(area);
+
+    (left_area, right_area)
 }
 
-/// Renders `left` flush left and `right` flush right on a single row, giving `right` exactly the
-/// width it needs so the two halves cannot overwrite each other in a narrow terminal.
 pub fn draw_split_row(left: Line, right: Line, area: Rect, buf: &mut Buffer) {
-    let [left_area, right_area] = Layout::horizontal([
-        Constraint::Fill(1),
-        Constraint::Length(right_width(&right, area)),
-    ])
-    .areas(area);
+    let (left_area, right_area) = split_row(&right, area);
 
     Paragraph::new(left).render(left_area, buf);
     Paragraph::new(right).render(right_area, buf);
@@ -179,8 +174,8 @@ pub fn draw_header(
     buf: &mut Buffer,
 ) {
     const TABS: [(AppScreen, &str); 3] = [
-        (AppScreen::Main, "targets"),
-        (AppScreen::WarpgateSettings, "settings"),
+        (AppScreen::Targets, "targets"),
+        (AppScreen::Settings, "settings"),
         (AppScreen::Logs, "logs"),
     ];
 

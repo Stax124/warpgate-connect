@@ -10,7 +10,6 @@ use crate::{
     app::App,
     screens::common::{draw_modal, draw_rule, draw_split_row, highlighted_table, key_hints},
     theme,
-    utils::get_color_from_group_color,
 };
 
 const VISIBLE_ROWS: u16 = 8;
@@ -47,7 +46,7 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
         .filter_map(|index| app.group_picker_rows.get(*index))
         .map(|row| {
             let (symbol, color) = match row.group.as_ref() {
-                Some(group) => ("●", get_color_from_group_color(group.color.as_deref())),
+                Some(group) => ("●", theme::group_color(group.color.as_deref())),
                 None => ("○", theme::DIM_TEXT),
             };
 

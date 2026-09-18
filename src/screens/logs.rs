@@ -46,7 +46,6 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
 
     draw_rule(body_rule_area, buf);
 
-    let update_version = app.data.update_available.lock().unwrap().clone();
     draw_footer(
         &[
             ("F1", "keys", true),
@@ -54,7 +53,7 @@ pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
             ("^R", "refresh", true),
         ],
         status,
-        update_version.as_deref(),
+        app.update_available.as_deref(),
         footer_area,
         buf,
     );
