@@ -4,26 +4,58 @@ use ratatui::widgets::{Block, BorderType, Widget};
 use ratatui::{buffer::Buffer, layout::Rect};
 use tui_logger::TuiLoggerWidget;
 
-use crate::app::App;
-use crate::screens::common::draw_status_bar;
+use crate::app::{App, AppScreen};
+use crate::screens::common::{current_status, draw_footer, draw_header, draw_rule};
+use crate::theme;
 
 pub fn draw(app: &mut App, area: Rect, buf: &mut Buffer) {
-    let loading_guard = app.data.loading_targets.lock().unwrap();
-    let is_loading = *loading_guard;
-    drop(loading_guard);
+    let [
+        header_area,
+        header_rule_area,
+        logs_area,
+        body_rule_area,
+        footer_area,
+    ] = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Fill(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .areas(area);
 
-    let [logs_area, status_bar_area] =
-        Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(area);
+    let status = current_status(app);
+    draw_header(
+        AppScreen::Logs,
+        &app.warpgate_host,
+        status,
+        header_area,
+        buf,
+    );
+    draw_rule(header_rule_area, buf);
 
     TuiLoggerWidget::default()
         .block(
             Block::bordered()
                 .border_type(BorderType::Rounded)
                 .title(" Logs ")
-                .title_style(Style::default().bold().fg(ratatui::style::Color::Yellow)),
+                .title_style(Style::default().bold().fg(theme::ACCENT)),
         )
         .state(&app.logger_state)
         .render(logs_area, buf);
 
-    draw_status_bar(app, status_bar_area, buf, &is_loading);
+    draw_rule(body_rule_area, buf);
+
+    let update_version = app.data.update_available.lock().unwrap().clone();
+    draw_footer(
+        &[
+            ("F1", "keys", true),
+            ("^N", "targets", true),
+            ("^R", "refresh", true),
+        ],
+        status,
+        update_version.as_deref(),
+        footer_area,
+        buf,
+    );
 }
