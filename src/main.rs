@@ -4,14 +4,17 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 use tui_logger::TuiTracingSubscriberLayer;
 
 use crate::{
-    app::App, app_data::ConnectionType, config::DEFAULT_WARPGATE_PORT,
-    utils::get_domain_from_warpgate_url,
+    app::App,
+    app_data::ConnectionType,
+    config::DEFAULT_WARPGATE_PORT,
+    utils::{get_domain_from_warpgate_url, warpgate_ssh_username},
 };
 
 mod app;
 mod app_data;
 mod config;
 mod event;
+mod list;
 mod screens;
 mod theme;
 mod ui;
@@ -20,12 +23,22 @@ mod utils;
 mod warpgate;
 
 #[derive(Debug, clap::Parser)]
+#[command(version)]
 struct Args {
     #[arg(
         long,
         help = "Skip the update check and proceed directly to the application."
     )]
     skip_update: bool,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum Command {
+    /// Print the SSH targets and the username each one needs, tab separated.
+    List,
 }
 
 pub async fn execute_connection(
@@ -53,7 +66,10 @@ pub async fn execute_connection(
                 .to_string(),
         )
         .arg("-o")
-        .arg(format!("User={}:{}", username, target.name))
+        .arg(format!(
+            "User={}",
+            warpgate_ssh_username(username, &target.name)
+        ))
         .arg(domain)
         .spawn()?
         .wait()
@@ -146,11 +162,16 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
     result
 }
 
-fn run_tokio_main(skip_update: bool) -> color_eyre::Result<()> {
+fn run_tokio_main(args: Args) -> color_eyre::Result<()> {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
-        .block_on(async { async_main(skip_update).await })?;
+        .block_on(async {
+            match args.command {
+                Some(Command::List) => list::print_targets(config::AppConfig::load()?).await,
+                None => async_main(args.skip_update).await,
+            }
+        })?;
 
     Ok(())
 }
@@ -169,5 +190,5 @@ fn main() -> color_eyre::Result<()> {
         .with(TuiTracingSubscriberLayer)
         .init();
 
-    run_tokio_main(args.skip_update)
+    run_tokio_main(args)
 }

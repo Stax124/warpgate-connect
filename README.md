@@ -75,7 +75,10 @@ If any required field is missing, the app will open on the settings screen autom
 ## Usage
 
 ```sh
-warpgate-connect [OPTIONS]
+warpgate-connect [OPTIONS] [COMMAND]
+
+Commands:
+  list             Print the SSH targets and the username each one needs, tab separated
 
 Options:
   --skip-update    Skip the GitHub update check on startup

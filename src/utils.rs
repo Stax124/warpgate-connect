@@ -97,6 +97,11 @@ pub fn rank_names<'a>(names: impl IntoIterator<Item = &'a str>, query: &str) -> 
         .collect()
 }
 
+/// The login Warpgate routes on: the account, then the target it should be forwarded to.
+pub fn warpgate_ssh_username(warpgate_username: &str, target_name: &str) -> String {
+    format!("{warpgate_username}:{target_name}")
+}
+
 pub fn get_domain_from_warpgate_url(url: &str) -> Option<String> {
     let re = regex_lite::Regex::new(r"^https?://([^:/]+)").unwrap();
     re.captures(url)

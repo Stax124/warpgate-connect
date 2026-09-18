@@ -26,7 +26,7 @@ pub async fn fetch_warpgate_data(data: Data, config: Arc<Mutex<crate::config::Ap
     *data.loading_targets.lock().unwrap() = false;
 }
 
-async fn fetch_configured_targets(
+pub(crate) async fn fetch_configured_targets(
     config: &Arc<Mutex<crate::config::AppConfig>>,
 ) -> color_eyre::Result<Vec<crate::warpgate::structs::WarpgateTarget>> {
     let (warpgate_url, warpgate_token) = {
