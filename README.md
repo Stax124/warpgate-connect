@@ -5,7 +5,7 @@ A TUI client for [Warpgate](https://github.com/warp-tech/warpgate) — a smart S
 ![Rust](https://img.shields.io/badge/rust-stable-orange)
 ![License](https://img.shields.io/github/license/Stax124/warpgate-connect)
 
-![warpgate-connect](/shared/img/warpgate-connect.webp)
+![warpgate-connect](/shared/img/warpgate-connect.gif)
 
 ## Features
 
@@ -82,6 +82,7 @@ Commands:
 
 Options:
   --skip-update    Skip the GitHub update check on startup
+  --config <PATH>  Read and save the configuration at PATH instead of the default location
   -h, --help       Print help
   -V, --version    Print version
 ```
@@ -109,4 +110,3 @@ Options:
 | `Backspace`          | Delete last search character               |
 | `Ctrl+A`             | Select all text (search / settings fields) |
 | `Tab` / `Shift+Tab`  | Navigate between settings fields           |
-

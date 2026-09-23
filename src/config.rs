@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use color_eyre::eyre::{Context, eyre};
 use serde::{Deserialize, Serialize};
 
@@ -9,10 +11,13 @@ pub struct AppConfig {
     pub warpgate_token: Option<String>,
     pub warpgate_username: Option<String>,
     pub warpgate_port: Option<u16>,
+
+    #[serde(skip)]
+    pub path: PathBuf,
 }
 
 impl AppConfig {
-    pub fn get_config_file_path() -> color_eyre::Result<std::path::PathBuf> {
+    pub fn get_config_file_path() -> color_eyre::Result<PathBuf> {
         let project_dirs =
             directories::ProjectDirs::from("com", "warpgate-connect", "warpgate-connect")
                 .ok_or_else(|| eyre!("Could not determine the user configuration directory"))?;
@@ -20,11 +25,10 @@ impl AppConfig {
         Ok(project_dirs.config_dir().join("config.toml"))
     }
 
-    pub fn load() -> color_eyre::Result<Self> {
-        let config_path = Self::get_config_file_path()?;
+    pub fn load(config_path: &Path) -> color_eyre::Result<Self> {
         tracing::info!(path = %config_path.display(), "Loading configuration");
 
-        let text = match std::fs::read_to_string(&config_path) {
+        let text = match std::fs::read_to_string(config_path) {
             Ok(text) => text,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(e) => {
@@ -38,6 +42,7 @@ impl AppConfig {
                 config_path.display()
             )
         })?;
+        app_config.path = config_path.to_path_buf();
         app_config
             .warpgate_port
             .get_or_insert(DEFAULT_WARPGATE_PORT);
@@ -55,7 +60,7 @@ impl AppConfig {
     }
 
     pub fn save(&self) -> color_eyre::Result<()> {
-        let config_path = Self::get_config_file_path()?;
+        let config_path = &self.path;
         tracing::info!(path = %config_path.display(), "Saving configuration");
 
         if let Some(parent) = config_path.parent() {
@@ -64,7 +69,7 @@ impl AppConfig {
         }
 
         let toml_string = toml::to_string_pretty(self)?;
-        std::fs::write(&config_path, toml_string)
+        std::fs::write(config_path, toml_string)
             .with_context(|| format!("Failed to write {}", config_path.display()))?;
 
         tracing::info!(path = %config_path.display(), "Configuration saved");
@@ -78,3 +83,7 @@ impl AppConfig {
             && self.warpgate_port.is_some()
     }
 }
+
+#[cfg(test)]
+#[path = "config_test.rs"]
+mod tests;

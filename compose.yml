@@ -1,11 +1,27 @@
+# Local Warpgate for development and README screenshots; driven by dev/scaffold.sh.
 services:
   warpgate:
-    image: ghcr.io/warp-tech/warpgate
-    network_mode: host
+    image: ghcr.io/warp-tech/warpgate:0.29.1
     ports:
       - 2222:2222
       - 8888:8888
     volumes:
-      - ./data/warpgate:/data
-    stdin_open: true
-    tty: true
+      - warpgate-data:/data
+    environment:
+      WARPGATE_ADMIN_PASSWORD: ${WARPGATE_ADMIN_PASSWORD:-admin}
+
+  ssh-prod:
+    image: lscr.io/linuxserver/openssh-server:latest
+    hostname: web-prod-01
+    environment: &sshd-environment
+      PASSWORD_ACCESS: "true"
+      USER_NAME: demo
+      USER_PASSWORD: demo
+
+  ssh-staging:
+    image: lscr.io/linuxserver/openssh-server:latest
+    hostname: web-staging-01
+    environment: *sshd-environment
+
+volumes:
+  warpgate-data:

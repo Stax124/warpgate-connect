@@ -415,6 +415,7 @@ fn configured_app() -> App<'static> {
             warpgate_token: Some("secret-token".into()),
             warpgate_username: Some("admin".into()),
             warpgate_port: Some(2222),
+            ..AppConfig::default()
         },
         true,
     )

@@ -16,6 +16,7 @@ cargo test
 cargo fmt                                   # `cargo fmt --check` must stay clean
 cargo clippy --all-targets -- -D warnings   # CI denies warnings
 cargo run -- --skip-update                  # run without the update check
+dev/scaffold.sh                             # local seeded Warpgate; then `cargo run -- --config data/config.toml`
 cargo build --release --target x86_64-unknown-linux-musl   # what releases ship
 ```
 
