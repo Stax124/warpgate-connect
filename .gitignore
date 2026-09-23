@@ -1,2 +1,4 @@
 /target
 .env
+/data/*
+!/data/.gitkeep

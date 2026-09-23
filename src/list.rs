@@ -7,18 +7,16 @@ use crate::{
 };
 
 pub async fn print_targets(config: AppConfig) -> color_eyre::Result<()> {
-    let config_path = AppConfig::get_config_file_path()?;
-
     let warpgate_api_url = config.warpgate_api_url.as_deref().ok_or_else(|| {
         eyre!(
             "Warpgate API URL is not configured in {}",
-            config_path.display()
+            config.path.display()
         )
     })?;
     let warpgate_username = config.warpgate_username.as_deref().ok_or_else(|| {
         eyre!(
             "Warpgate username is not configured in {}",
-            config_path.display()
+            config.path.display()
         )
     })?;
 

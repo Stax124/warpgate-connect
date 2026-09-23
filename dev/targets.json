@@ -1,0 +1,36 @@
+{
+  "groups": [
+    { "name": "Production", "description": "Customer-facing services", "color": "Danger" },
+    { "name": "Staging", "description": "Pre-release mirror of production", "color": "Warning" },
+    { "name": "Development", "description": "Shared development machines", "color": "Success" },
+    { "name": "Databases", "description": "Database hosts", "color": "Info" },
+    { "name": "Monitoring", "description": "Observability stack", "color": "Primary" }
+  ],
+  "targets": [
+    { "name": "web-prod-01", "description": "Nginx + app server, eu-central", "group": "Production", "host": "ssh-prod", "port": 2222, "username": "demo", "password": "demo" },
+    { "name": "web-prod-02", "description": "Nginx + app server, eu-central", "group": "Production", "host": "10.10.1.12", "port": 22, "username": "deploy", "password": "unused" },
+    { "name": "web-prod-03", "description": "Nginx + app server, us-east", "group": "Production", "host": "10.10.1.13", "port": 22, "username": "deploy", "password": "unused" },
+    { "name": "api-gateway", "description": "Public API edge", "group": "Production", "host": "10.10.1.20", "port": 22, "username": "deploy", "password": "unused" },
+    { "name": "worker-prod-01", "description": "Background job runner", "group": "Production", "host": "10.10.1.31", "port": 22, "username": "deploy", "password": "unused" },
+    { "name": "worker-prod-02", "description": "Background job runner", "group": "Production", "host": "10.10.1.32", "port": 22, "username": "deploy", "password": "unused" },
+    { "name": "web-staging-01", "description": "Staging app server", "group": "Staging", "host": "ssh-staging", "port": 2222, "username": "demo", "password": "demo" },
+    { "name": "api-staging", "description": "Staging API edge", "group": "Staging", "host": "10.20.1.20", "port": 22, "username": "deploy", "password": "unused" },
+    { "name": "worker-staging", "description": "Staging job runner", "group": "Staging", "host": "10.20.1.31", "port": 22, "username": "deploy", "password": "unused" },
+    { "name": "dev-box-alice", "description": "Personal development VM", "group": "Development", "host": "10.30.0.11", "port": 22, "username": "alice", "password": "unused" },
+    { "name": "dev-box-bob", "description": "Personal development VM", "group": "Development", "host": "10.30.0.12", "port": 22, "username": "bob", "password": "unused" },
+    { "name": "ci-runner-01", "description": "GitLab CI runner", "group": "Development", "host": "10.30.1.21", "port": 22, "username": "gitlab-runner", "password": "unused" },
+    { "name": "ci-runner-02", "description": "GitLab CI runner", "group": "Development", "host": "10.30.1.22", "port": 22, "username": "gitlab-runner", "password": "unused" },
+    { "name": "pg-primary", "description": "PostgreSQL 17 primary", "group": "Databases", "host": "10.40.0.10", "port": 22, "username": "postgres", "password": "unused" },
+    { "name": "pg-replica-01", "description": "PostgreSQL 17 streaming replica", "group": "Databases", "host": "10.40.0.11", "port": 22, "username": "postgres", "password": "unused" },
+    { "name": "redis-cache", "description": "Session and page cache", "group": "Databases", "host": "10.40.0.20", "port": 22, "username": "redis", "password": "unused" },
+    { "name": "clickhouse-01", "description": "Analytics warehouse", "group": "Databases", "host": "10.40.0.30", "port": 22, "username": "clickhouse", "password": "unused" },
+    { "name": "grafana", "description": "Dashboards", "group": "Monitoring", "host": "10.50.0.10", "port": 22, "username": "ops", "password": "unused" },
+    { "name": "prometheus", "description": "Metrics scraper and TSDB", "group": "Monitoring", "host": "10.50.0.11", "port": 22, "username": "ops", "password": "unused" },
+    { "name": "loki", "description": "Log aggregation", "group": "Monitoring", "host": "10.50.0.12", "port": 22, "username": "ops", "password": "unused" },
+    { "name": "backup-nas", "description": "Nightly offsite backups", "host": "10.60.0.5", "port": 22, "username": "backup", "password": "unused" },
+    { "name": "vpn-gateway", "description": "WireGuard endpoint", "host": "10.60.0.1", "port": 22, "username": "root", "password": "unused" }
+  ],
+  "http_targets": [
+    { "name": "grafana-web", "description": "Grafana web UI", "group": "Monitoring", "url": "http://10.50.0.10:3000" }
+  ]
+}

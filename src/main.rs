@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use clap::Parser;
 use tokio::process;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
@@ -23,6 +25,14 @@ struct Args {
         help = "Skip the update check and proceed directly to the application."
     )]
     skip_update: bool,
+
+    #[arg(
+        long,
+        global = true,
+        value_name = "PATH",
+        help = "Read and save the configuration at PATH instead of the default location."
+    )]
+    config: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Option<Command>,
@@ -56,13 +66,13 @@ async fn execute_connection(connection: &Connection) -> color_eyre::Result<()> {
     Ok(())
 }
 
-async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
+async fn async_main(config_path: &Path, skip_update: bool) -> color_eyre::Result<()> {
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
         "Starting warpgate-connect"
     );
 
-    let config = config::AppConfig::load()?;
+    let config = config::AppConfig::load(config_path)?;
 
     let terminal = ratatui::init();
     let outcome = App::new(config, skip_update).run(terminal).await;
@@ -87,13 +97,20 @@ async fn async_main(skip_update: bool) -> color_eyre::Result<()> {
 }
 
 fn run_tokio_main(args: Args) -> color_eyre::Result<()> {
+    let config_path = match args.config {
+        Some(path) => path,
+        None => config::AppConfig::get_config_file_path()?,
+    };
+
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
         .block_on(async {
             match args.command {
-                Some(Command::List) => list::print_targets(config::AppConfig::load()?).await,
-                None => async_main(args.skip_update).await,
+                Some(Command::List) => {
+                    list::print_targets(config::AppConfig::load(&config_path)?).await
+                }
+                None => async_main(&config_path, args.skip_update).await,
             }
         })?;
 
